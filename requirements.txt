@@ -1,0 +1,7 @@
+pandas
+openpyxl
+flask
+flask-cors
+folium
+ipykernel
+ipywidgets
