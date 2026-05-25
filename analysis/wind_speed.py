@@ -6,13 +6,18 @@ map with a colour-coded image overlay saved to wind_speed_map.html.
 """
 
 import io
+import os
+import json
 import base64
 import numpy as np
+from PIL import Image
 import rasterio
 from rasterio.windows import from_bounds
 from rasterio.transform import array_bounds, from_bounds as transform_from_bounds
+from rasterio.features import geometry_mask
 from rasterio.crs import CRS
 from rasterio.warp import reproject, calculate_default_transform, Resampling as WarpResampling
+import geopandas as gpd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -22,8 +27,11 @@ import folium
 # ---------------------------------------------------------------------------
 # 1.  File paths
 # ---------------------------------------------------------------------------
-TIF_PATH  = "data/CAN_wind-speed_100m.tif"
-OUT_HTML  = "wind_speed_map.html"
+TIF_PATH        = "data/CAN_wind-speed_100m.tif"
+ONTARIO_CACHE   = "data/ontario_boundary.gpkg"   # cached after first run
+OUT_HTML        = "wind_speed_map.html"
+OUT_PNG         = "wind_speed_overlay.png"
+OUT_JSON        = "wind_speed_overlay.json"
 
 # ---------------------------------------------------------------------------
 # 2.  Ontario bounding box (EPSG:4326)
@@ -32,9 +40,28 @@ ON_WEST, ON_EAST   = -95.16, -74.34
 ON_SOUTH, ON_NORTH = 41.67,   56.87
 
 # ---------------------------------------------------------------------------
-# 3.  Read the raster clipped to Ontario, downsampled to ≤ 600 px per side
+# 2b. Ontario boundary polygon (Natural Earth 1:10m, cached locally)
 # ---------------------------------------------------------------------------
-MAX_PX = 600
+def get_ontario_geometry():
+    if os.path.exists(ONTARIO_CACHE):
+        gdf = gpd.read_file(ONTARIO_CACHE)
+    else:
+        print("Downloading province boundaries (one-time, ~10 MB)…")
+        url = ("https://naturalearth.s3.amazonaws.com/10m_cultural/"
+               "ne_10m_admin_1_states_provinces.zip")
+        provinces = gpd.read_file(url)
+        ontario   = provinces[provinces["name"] == "Ontario"].to_crs("EPSG:4326")
+        ontario[["geometry"]].to_file(ONTARIO_CACHE, driver="GPKG")
+        gdf = ontario[["geometry"]]
+    return gdf.geometry.iloc[0]
+
+ontario_geom = get_ontario_geometry()
+print("Ontario boundary loaded.")
+
+# ---------------------------------------------------------------------------
+# 3.  Read the raster clipped to Ontario, downsampled to ≤ 2000 px per side
+# ---------------------------------------------------------------------------
+MAX_PX = 2000
 
 with rasterio.open(TIF_PATH) as src:
     window = from_bounds(ON_WEST, ON_SOUTH, ON_EAST, ON_NORTH, src.transform)
@@ -70,22 +97,36 @@ print(f"Wind speed range: {valid_min:.2f} – {valid_max:.2f} m/s")
 print(f"Mean wind speed : {valid_mean:.2f} m/s")
 
 # ---------------------------------------------------------------------------
-# 4.  Reproject downsampled data to EPSG:3857 (Web Mercator)
-#     Leaflet renders tiles in Mercator and linearly stretches ImageOverlay
-#     images between their corner pixel positions.  If the source image has
-#     equal degrees-per-pixel (EPSG:4326), high latitudes end up stretched
-#     and the overlay appears shifted ~2-3° northward over Ontario.
-#     Reprojecting to EPSG:3857 gives equal Mercator-metres per pixel so
-#     the linear stretch is exact.
+# 3b. Mask to Ontario's actual political boundary
+#     Without this, the rectangular window includes Quebec, Manitoba, and US
+#     states that share the same bounding box.
 # ---------------------------------------------------------------------------
-src_crs = CRS.from_epsg(4326)
-dst_crs = CRS.from_epsg(3857)
-
-# Build an affine transform for the downsampled EPSG:4326 array
 src_transform_ds = transform_from_bounds(
     actual_west, actual_south, actual_east, actual_north, out_w, out_h
 )
 
+outside_ontario = geometry_mask(
+    [ontario_geom],
+    out_shape=(out_h, out_w),
+    transform=src_transform_ds,
+    invert=False,   # True = outside the polygon → set to NaN
+)
+data[outside_ontario] = np.nan
+
+# Recompute stats after masking (only Ontario land pixels)
+valid_min  = float(np.nanmin(data))
+valid_max  = float(np.nanmax(data))
+valid_mean = float(np.nanmean(data))
+print(f"After masking   : range {valid_min:.2f}–{valid_max:.2f} m/s, "
+      f"mean {valid_mean:.2f} m/s")
+
+# ---------------------------------------------------------------------------
+# 4.  Reproject downsampled data to EPSG:3857 (Web Mercator)
+# ---------------------------------------------------------------------------
+src_crs = CRS.from_epsg(4326)
+dst_crs = CRS.from_epsg(3857)
+
+# src_transform_ds already computed in step 3b
 # Calculate the output Mercator transform / size
 dst_transform, dst_width, dst_height = calculate_default_transform(
     src_crs, dst_crs, out_w, out_h,
@@ -121,9 +162,32 @@ rgba[nan_mask, 3] = 0.0
 # Convert to uint8
 rgba_u8 = (rgba * 255).astype(np.uint8)
 
-# Encode as base64 PNG so the HTML is self-contained
+# ------------------------------------------------------------------
+# Save PNG to disk (high-quality, reusable by the frontend)
+# ------------------------------------------------------------------
+pil_img = Image.fromarray(rgba_u8, mode="RGBA")
+pil_img.save(OUT_PNG, format="PNG", optimize=True, compress_level=6)
+print(f"PNG saved   → {OUT_PNG}  ({os.path.getsize(OUT_PNG) / 1024:.0f} KB)")
+
+# Save bounds + colour-scale metadata so the frontend knows where to place
+# the image and how to render the legend without recomputing anything.
+metadata = {
+    "bounds": [[actual_south, actual_west], [actual_north, actual_east]],
+    "vmin":   round(valid_min,  3),
+    "vmax":   round(valid_max,  3),
+    "vmean":  round(valid_mean, 3),
+    "image":  OUT_PNG,
+    "width":  dst_width,
+    "height": dst_height,
+    "cmap":   "RdYlGn",
+}
+with open(OUT_JSON, "w") as _f:
+    json.dump(metadata, _f, indent=2)
+print(f"JSON saved  → {OUT_JSON}")
+
+# Encode as base64 for the self-contained standalone HTML
 buf = io.BytesIO()
-plt.imsave(buf, rgba_u8, format="png")
+pil_img.save(buf, format="PNG")
 buf.seek(0)
 img_b64 = base64.b64encode(buf.read()).decode("utf-8")
 img_src  = f"data:image/png;base64,{img_b64}"
