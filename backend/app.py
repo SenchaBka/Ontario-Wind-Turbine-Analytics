@@ -50,7 +50,7 @@ def get_turbines():
         filtered = df[df['_year'].notna() & (df['_year'] <= year)]
 
     # Return only the columns needed for the map + popup
-    result = filtered.drop(columns=['_year']).where(pd.notna(filtered.drop(columns=['_year'])), None)
+    result = filtered.drop(columns=['_year']).fillna('N/A')
     return jsonify(result.to_dict(orient='records'))
 
 
