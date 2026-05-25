@@ -10,7 +10,9 @@ import base64
 import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
-from rasterio.transform import array_bounds
+from rasterio.transform import array_bounds, from_bounds as transform_from_bounds
+from rasterio.crs import CRS
+from rasterio.warp import reproject, calculate_default_transform, Resampling as WarpResampling
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -68,14 +70,52 @@ print(f"Wind speed range: {valid_min:.2f} – {valid_max:.2f} m/s")
 print(f"Mean wind speed : {valid_mean:.2f} m/s")
 
 # ---------------------------------------------------------------------------
-# 4.  Build a colour-mapped RGBA PNG (transparent where NaN)
+# 4.  Reproject downsampled data to EPSG:3857 (Web Mercator)
+#     Leaflet renders tiles in Mercator and linearly stretches ImageOverlay
+#     images between their corner pixel positions.  If the source image has
+#     equal degrees-per-pixel (EPSG:4326), high latitudes end up stretched
+#     and the overlay appears shifted ~2-3° northward over Ontario.
+#     Reprojecting to EPSG:3857 gives equal Mercator-metres per pixel so
+#     the linear stretch is exact.
+# ---------------------------------------------------------------------------
+src_crs = CRS.from_epsg(4326)
+dst_crs = CRS.from_epsg(3857)
+
+# Build an affine transform for the downsampled EPSG:4326 array
+src_transform_ds = transform_from_bounds(
+    actual_west, actual_south, actual_east, actual_north, out_w, out_h
+)
+
+# Calculate the output Mercator transform / size
+dst_transform, dst_width, dst_height = calculate_default_transform(
+    src_crs, dst_crs, out_w, out_h,
+    left=actual_west, bottom=actual_south,
+    right=actual_east, top=actual_north,
+)
+
+data_merc = np.full((dst_height, dst_width), np.nan, dtype=np.float32)
+reproject(
+    source=data,
+    destination=data_merc,
+    src_transform=src_transform_ds,
+    src_crs=src_crs,
+    dst_transform=dst_transform,
+    dst_crs=dst_crs,
+    resampling=WarpResampling.bilinear,
+    src_nodata=np.nan,
+    dst_nodata=np.nan,
+)
+print(f"Reprojected to  : {dst_width} × {dst_height} px (EPSG:3857)")
+
+# ---------------------------------------------------------------------------
+# 5.  Build a colour-mapped RGBA PNG (transparent where NaN)
 # ---------------------------------------------------------------------------
 norm  = mcolors.Normalize(vmin=valid_min, vmax=valid_max)
 cmap  = plt.get_cmap("RdYlGn")          # red = low, green = high
-rgba  = cmap(norm(np.nan_to_num(data, nan=valid_min)))  # (H, W, 4)
+rgba  = cmap(norm(np.nan_to_num(data_merc, nan=valid_min)))  # (H, W, 4)
 
 # Make NaN pixels fully transparent
-nan_mask = np.isnan(data)
+nan_mask = np.isnan(data_merc)
 rgba[nan_mask, 3] = 0.0
 
 # Convert to uint8
@@ -89,7 +129,7 @@ img_b64 = base64.b64encode(buf.read()).decode("utf-8")
 img_src  = f"data:image/png;base64,{img_b64}"
 
 # ---------------------------------------------------------------------------
-# 5.  Also produce a legend PNG
+# 6.  Also produce a legend PNG
 # ---------------------------------------------------------------------------
 fig_leg, ax_leg = plt.subplots(figsize=(5, 0.5))
 fig_leg.subplots_adjust(bottom=0.5)
@@ -107,7 +147,7 @@ buf_leg.seek(0)
 leg_b64 = base64.b64encode(buf_leg.read()).decode("utf-8")
 
 # ---------------------------------------------------------------------------
-# 6.  Build Folium map
+# 7.  Build Folium map
 # ---------------------------------------------------------------------------
 centre_lat = (ON_SOUTH + ON_NORTH) / 2
 centre_lon = (ON_WEST  + ON_EAST)  / 2
