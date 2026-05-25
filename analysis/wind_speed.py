@@ -29,9 +29,9 @@ import folium
 # ---------------------------------------------------------------------------
 TIF_PATH        = "data/CAN_wind-speed_100m.tif"
 ONTARIO_CACHE   = "data/ontario_boundary.gpkg"   # cached after first run
-OUT_HTML        = "wind_speed_map.html"
-OUT_PNG         = "wind_speed_overlay.png"
-OUT_JSON        = "wind_speed_overlay.json"
+OUT_HTML        = "../results/wind_speed_map.html"
+OUT_PNG         = "../results/wind_speed_overlay.png"
+OUT_JSON        = "../results/wind_speed_overlay.json"
 
 # ---------------------------------------------------------------------------
 # 2.  Ontario bounding box (EPSG:4326)

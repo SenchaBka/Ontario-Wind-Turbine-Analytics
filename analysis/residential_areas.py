@@ -41,7 +41,7 @@ folium.GeoJson(
 
 folium.LayerControl().add_to(m)
 
-output_path = "built_up_areas_map.html"
+output_path = "../results/built_up_areas_map.html"
 m.save(output_path)
 import os
 size_mb = os.path.getsize(output_path) / 1_000_000

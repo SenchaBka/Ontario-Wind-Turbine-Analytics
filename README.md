@@ -7,6 +7,7 @@ https://globalwindatlas.info/en/download/gis-files
 https://geohub.lio.gov.on.ca/datasets/built-up-area/explore?location=43.997557%2C-79.332619%2C10
 
 work on next:
+update saving files to the results folder
 build up area in northern ontario
 energy demand
 Terrain?
@@ -14,3 +15,4 @@ distance to roads, substations, power lines
 humidity?
 Land use type
 solar?
+work on frontend
