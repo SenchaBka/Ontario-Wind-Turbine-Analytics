@@ -61,7 +61,7 @@ print("Ontario boundary loaded.")
 # ---------------------------------------------------------------------------
 # 3.  Read the raster clipped to Ontario, downsampled to ≤ 2000 px per side
 # ---------------------------------------------------------------------------
-MAX_PX = 2000
+MAX_PX = 5000
 
 with rasterio.open(TIF_PATH) as src:
     window = from_bounds(ON_WEST, ON_SOUTH, ON_EAST, ON_NORTH, src.transform)
@@ -151,13 +151,39 @@ print(f"Reprojected to  : {dst_width} × {dst_height} px (EPSG:3857)")
 # ---------------------------------------------------------------------------
 # 5.  Build a colour-mapped RGBA PNG (transparent where NaN)
 # ---------------------------------------------------------------------------
-norm  = mcolors.Normalize(vmin=valid_min, vmax=valid_max)
-cmap  = plt.get_cmap("RdYlGn")          # red = low, green = high
-rgba  = cmap(norm(np.nan_to_num(data_merc, nan=valid_min)))  # (H, W, 4)
+# Fix the normalisation to the turbine-viability thresholds so colours
+# always mean the same wind speed regardless of the data range.
+NORM_MIN, NORM_MAX = 3.0, 11.0
+norm = mcolors.Normalize(vmin=NORM_MIN, vmax=NORM_MAX)
 
-# Make NaN pixels fully transparent
+# Custom wind-viability colormap
+# Positions are (wind_speed - NORM_MIN) / (NORM_MAX - NORM_MIN)
+#   3.0 m/s  → 0.000   < 5   not viable        near-white
+#   5.0 m/s  → 0.250   5-6.5 marginal          pale warm yellow
+#   6.5 m/s  → 0.4375  6.5+  viable            light salmon-orange
+#   8.0 m/s  → 0.625   > 8   excellent         vivid red
+#  10.0 m/s  → 0.875   > 10  exceptional       dark crimson
+#  11.0 m/s  → 1.000         exceptional max   very dark maroon
+cmap = mcolors.LinearSegmentedColormap.from_list(
+    "wind_viability",
+    [
+        (0.000,  "#f7f7f7"),  # 3.0 m/s – not viable (near white)
+        (0.250,  "#fee5d9"),  # 5.0 m/s – marginal border (pale rose)
+        (0.4375, "#fcae91"),  # 6.5 m/s – marginal  (light salmon)
+        (0.540,  "#fb6a4a"),  # 7.3 m/s – viable    (orange-red)
+        (0.625,  "#de2d26"),  # 8.0 m/s – excellent (vivid red)
+        (0.875,  "#a50f15"),  # 10.0 m/s – exceptional (dark red)
+        (1.000,  "#67000d"),  # 11.0 m/s – exceptional max (maroon)
+    ],
+    N=512,
+)
+
+rgba = cmap(norm(np.nan_to_num(data_merc, nan=NORM_MIN)))  # (H, W, 4)
+
+# Bake transparency into the PNG: NaN = fully transparent,
+# valid pixels = 0.42 opacity so the basemap shows through clearly.
 nan_mask = np.isnan(data_merc)
-rgba[nan_mask, 3] = 0.0
+rgba[:, :, 3] = np.where(nan_mask, 0.0, 0.42)
 
 # Convert to uint8
 rgba_u8 = (rgba * 255).astype(np.uint8)
@@ -173,13 +199,19 @@ print(f"PNG saved   → {OUT_PNG}  ({os.path.getsize(OUT_PNG) / 1024:.0f} KB)")
 # the image and how to render the legend without recomputing anything.
 metadata = {
     "bounds": [[actual_south, actual_west], [actual_north, actual_east]],
-    "vmin":   round(valid_min,  3),
-    "vmax":   round(valid_max,  3),
+    "vmin":   NORM_MIN,
+    "vmax":   NORM_MAX,
     "vmean":  round(valid_mean, 3),
     "image":  OUT_PNG,
     "width":  dst_width,
     "height": dst_height,
-    "cmap":   "RdYlGn",
+    "cmap":   "wind_viability",
+    "thresholds": {
+        "not_viable":   5.0,
+        "marginal":     6.5,
+        "good":         8.0,
+        "exceptional": 10.0,
+    },
 }
 with open(OUT_JSON, "w") as _f:
     json.dump(metadata, _f, indent=2)
@@ -193,19 +225,20 @@ img_b64 = base64.b64encode(buf.read()).decode("utf-8")
 img_src  = f"data:image/png;base64,{img_b64}"
 
 # ---------------------------------------------------------------------------
-# 6.  Also produce a legend PNG
+# 6.  Legend PNG – gradient bar with viability tick marks
 # ---------------------------------------------------------------------------
-fig_leg, ax_leg = plt.subplots(figsize=(5, 0.5))
-fig_leg.subplots_adjust(bottom=0.5)
+fig_leg, ax_leg = plt.subplots(figsize=(6, 0.55))
+fig_leg.subplots_adjust(bottom=0.55)
 cb = matplotlib.colorbar.ColorbarBase(
-    ax_leg,
-    cmap=cmap,
-    norm=norm,
-    orientation="horizontal",
+    ax_leg, cmap=cmap, norm=norm, orientation="horizontal",
 )
+# Tick at each viability threshold
+cb.set_ticks([3, 5, 6.5, 8, 10, 11])
+cb.set_ticklabels(["3", "5\nNot viable", "6.5\nMarginal", "8\nExcellent", "10\nExceptional", "11"])
 cb.set_label("Wind Speed at 100 m (m/s)", fontsize=9)
+ax_leg.tick_params(labelsize=7)
 buf_leg = io.BytesIO()
-fig_leg.savefig(buf_leg, format="png", bbox_inches="tight", dpi=120)
+fig_leg.savefig(buf_leg, format="png", bbox_inches="tight", dpi=130, facecolor="white")
 plt.close(fig_leg)
 buf_leg.seek(0)
 leg_b64 = base64.b64encode(buf_leg.read()).decode("utf-8")
@@ -226,10 +259,23 @@ m = folium.Map(
 folium.raster_layers.ImageOverlay(
     image=img_src,
     bounds=[[actual_south, actual_west], [actual_north, actual_east]],
-    opacity=0.7,
+    opacity=1.0,   # alpha already baked into the PNG (0.42 per pixel)
     interactive=True,
     cross_origin=False,
     name="Wind Speed 100 m",
+).add_to(m)
+
+# Ontario boundary outline
+folium.GeoJson(
+    ontario_geom.__geo_interface__,
+    name="Ontario boundary",
+    style_function=lambda _: {
+        "fillColor": "none",
+        "fill": False,
+        "color": "#1a1a2e",
+        "weight": 1.8,
+        "opacity": 0.75,
+    },
 ).add_to(m)
 
 # Layer control so users can toggle the overlay

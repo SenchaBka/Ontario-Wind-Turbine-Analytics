@@ -9,11 +9,17 @@
       -74.34249999999999
     ]
   ],
-  "vmin": 4.107,
-  "vmax": 9.581,
-  "vmean": 6.75,
+  "vmin": 3.0,
+  "vmax": 11.0,
+  "vmean": 6.752,
   "image": "wind_speed_overlay.png",
-  "width": 1640,
-  "height": 1855,
-  "cmap": "RdYlGn"
+  "width": 4100,
+  "height": 4638,
+  "cmap": "wind_viability",
+  "thresholds": {
+    "not_viable": 5.0,
+    "marginal": 6.5,
+    "good": 8.0,
+    "exceptional": 10.0
+  }
 }
