@@ -37,6 +37,7 @@
 
     #map {
       flex: 1;
+      position: relative;
     }
 
     #controls {
@@ -72,6 +73,57 @@
       color: #666;
       white-space: nowrap;
     }
+
+    #wind-toggle {
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    #wind-toggle:hover { background: #2e2e50; }
+    #wind-toggle.off   { background: #888; }
+
+    /* Wind speed legend */
+    #wind-legend {
+      position: absolute;
+      bottom: 24px;
+      right: 12px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.93);
+      border-radius: 8px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 11px;
+      line-height: 1.6;
+      min-width: 170px;
+    }
+    #wind-legend h4 {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #222;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 3px;
+    }
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.12);
+    }
   </style>
 </head>
 <body>
@@ -81,13 +133,23 @@
     <span id="header-range"></span>
   </header>
 
-  <div id="map"></div>
+  <div id="map">
+    <div id="wind-legend" style="display:none">
+      <h4>Wind Speed · 100 m</h4>
+      <div class="legend-row"><span class="legend-swatch" style="background:#f7f7f7"></span><span>&lt; 5 m/s — Not viable</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#fcae91"></span><span>5 – 6.5 m/s — Marginal</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#fb6a4a"></span><span>6.5 – 8 m/s — Viable</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#de2d26"></span><span>&gt; 8 m/s — Excellent</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#a50f15"></span><span>&gt; 10 m/s — Exceptional</span></div>
+    </div>
+  </div>
 
   <div id="controls">
     <label for="year-slider">Year built by:</label>
     <input type="range" id="year-slider" />
     <span id="year-display"></span>
     <span id="count"></span>
+    <button id="wind-toggle" class="off">Wind Speed OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -100,11 +162,43 @@
     }).addTo(map);
 
     let markers = L.layerGroup().addTo(map);
-    const slider = document.getElementById('year-slider');
-    const yearDisplay = document.getElementById('year-display');
-    const countEl = document.getElementById('count');
+    let windOverlay = null;
+    let windVisible = false;
 
-    // Load year range first, then turbines
+    const slider      = document.getElementById('year-slider');
+    const yearDisplay = document.getElementById('year-display');
+    const countEl     = document.getElementById('count');
+    const windToggle  = document.getElementById('wind-toggle');
+    const windLegend  = document.getElementById('wind-legend');
+
+    // ── Wind overlay ──────────────────────────────────────────────
+    fetch(`${API}/api/wind-overlay`)
+      .then(r => r.json())
+      .then(meta => {
+        windOverlay = L.imageOverlay(
+          `${API}/api/wind-overlay/image`,
+          meta.bounds,
+          { opacity: 1.0, interactive: false }
+        );
+      });
+
+    windToggle.addEventListener('click', () => {
+      if (!windOverlay) return;
+      windVisible = !windVisible;
+      if (windVisible) {
+        windOverlay.addTo(map);
+        windToggle.textContent = 'Wind Speed ON';
+        windToggle.classList.remove('off');
+        windLegend.style.display = 'block';
+      } else {
+        map.removeLayer(windOverlay);
+        windToggle.textContent = 'Wind Speed OFF';
+        windToggle.classList.add('off');
+        windLegend.style.display = 'none';
+      }
+    });
+
+    // ── Turbines ──────────────────────────────────────────────────
     fetch(`${API}/api/years`)
       .then(r => r.json())
       .then(({ min, max }) => {

@@ -1,12 +1,15 @@
 import os
+import json
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'data', 'Wind_Turbine_Database_en.xlsx')
+DATA_PATH       = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'data', 'Wind_Turbine_Database_en.xlsx')
+WIND_PNG_PATH   = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'wind_speed_overlay.png')
+WIND_JSON_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'wind_speed_overlay.json')
 
 
 def extract_year(val):
@@ -52,6 +55,19 @@ def get_turbines():
     # Return only the columns needed for the map + popup
     result = filtered.drop(columns=['_year']).fillna('N/A')
     return jsonify(result.to_dict(orient='records'))
+
+
+@app.route('/api/wind-overlay')
+def get_wind_overlay():
+    """Return pre-computed wind-speed overlay bounds and colour metadata."""
+    with open(WIND_JSON_PATH) as f:
+        return jsonify(json.load(f))
+
+
+@app.route('/api/wind-overlay/image')
+def get_wind_overlay_image():
+    """Serve the pre-built EPSG:3857 wind-speed overlay PNG."""
+    return send_file(WIND_PNG_PATH, mimetype='image/png')
 
 
 if __name__ == '__main__':
