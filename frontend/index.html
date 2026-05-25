@@ -74,7 +74,7 @@
       white-space: nowrap;
     }
 
-    #wind-toggle {
+    .map-toggle {
       background: #1a1a2e;
       color: white;
       border: none;
@@ -86,8 +86,8 @@
       white-space: nowrap;
       transition: background 0.2s;
     }
-    #wind-toggle:hover { background: #2e2e50; }
-    #wind-toggle.off   { background: #888; }
+    .map-toggle:hover { background: #2e2e50; }
+    .map-toggle.off   { background: #888; }
 
     /* Wind speed legend */
     #wind-legend {
@@ -149,7 +149,8 @@
     <input type="range" id="year-slider" />
     <span id="year-display"></span>
     <span id="count"></span>
-    <button id="wind-toggle" class="off">Wind Speed OFF</button>
+    <button id="wind-toggle" class="map-toggle off">Wind Speed OFF</button>
+    <button id="res-toggle" class="map-toggle off">Residential Buffer OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -164,12 +165,15 @@
     let markers = L.layerGroup().addTo(map);
     let windOverlay = null;
     let windVisible = false;
+    let resLayer = null;
+    let resVisible = false;
 
     const slider      = document.getElementById('year-slider');
     const yearDisplay = document.getElementById('year-display');
     const countEl     = document.getElementById('count');
     const windToggle  = document.getElementById('wind-toggle');
     const windLegend  = document.getElementById('wind-legend');
+    const resToggle   = document.getElementById('res-toggle');
 
     // ── Wind overlay ──────────────────────────────────────────────
     fetch(`${API}/api/wind-overlay`)
@@ -195,6 +199,34 @@
         windToggle.textContent = 'Wind Speed OFF';
         windToggle.classList.add('off');
         windLegend.style.display = 'none';
+      }
+    });
+
+    // ── Residential buffer ────────────────────────────────────────
+    fetch(`${API}/api/residential-buffer`)
+      .then(r => r.json())
+      .then(geojson => {
+        resLayer = L.geoJSON(geojson, {
+          style: {
+            color: '#cc5500',
+            fillColor: '#ff7800',
+            fillOpacity: 0.25,
+            weight: 1
+          }
+        });
+      });
+
+    resToggle.addEventListener('click', () => {
+      if (!resLayer) return;
+      resVisible = !resVisible;
+      if (resVisible) {
+        resLayer.addTo(map);
+        resToggle.textContent = 'Residential Buffer ON';
+        resToggle.classList.remove('off');
+      } else {
+        map.removeLayer(resLayer);
+        resToggle.textContent = 'Residential Buffer OFF';
+        resToggle.classList.add('off');
       }
     });
 

@@ -1,7 +1,8 @@
 import os
 import json
 import pandas as pd
-from flask import Flask, jsonify, request, send_file
+import geopandas as gpd
+from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -10,6 +11,7 @@ CORS(app)
 DATA_PATH       = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'data', 'Wind_Turbine_Database_en.xlsx')
 WIND_PNG_PATH   = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'wind_speed_overlay.png')
 WIND_JSON_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'wind_speed_overlay.json')
+RES_BUFFER_PATH = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'data', 'residential_buffer.gpkg')
 
 
 def extract_year(val):
@@ -68,6 +70,13 @@ def get_wind_overlay():
 def get_wind_overlay_image():
     """Serve the pre-built EPSG:3857 wind-speed overlay PNG."""
     return send_file(WIND_PNG_PATH, mimetype='image/png')
+
+
+@app.route('/api/residential-buffer')
+def get_residential_buffer():
+    """Return the dissolved 550 m residential buffer as GeoJSON."""
+    gdf = gpd.read_file(RES_BUFFER_PATH)
+    return Response(gdf.to_json(), mimetype='application/json')
 
 
 if __name__ == '__main__':
