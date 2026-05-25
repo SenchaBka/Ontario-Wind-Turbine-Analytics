@@ -1,53 +1,41 @@
 import geopandas as gpd
 import folium
-from folium.plugins import FastMarkerCluster
 
 # Load built-up areas
 gdf = gpd.read_file("data/Built_Up_Area.geojson")
 print(f"Loaded {len(gdf)} built-up area polygons")
 
-# --- 550 m buffer ---
-# Reproject to metric CRS (EPSG:3347 Statistics Canada Lambert)
+# --- Buffer 550 m then dissolve into one unified polygon ---
+# (buffer already contains the original area, so this is house + surroundings)
 gdf_metric = gdf.to_crs(epsg=3347)
 gdf_metric["geometry"] = gdf_metric.geometry.buffer(550)
 
-# Dissolve overlapping buffers and reproject back to WGS84 for mapping
-buffer_dissolved = gdf_metric.dissolve().to_crs(epsg=4326)
-print("550 m buffer created and dissolved")
+unified = gdf_metric.dissolve()[["geometry"]]
 
-# Drop timestamp columns (not JSON-serialisable) and keep only useful fields
-keep_cols = ["COMMUNITY_CLASS", "LOCATION_DESCR", "geometry"]
-gdf_map = gdf[[c for c in keep_cols if c in gdf.columns]]
+# Simplify in metric CRS to reduce vertex count (100 m tolerance)
+unified["geometry"] = unified.geometry.simplify(100, preserve_topology=True)
+
+# Reproject back to WGS84
+unified = unified.to_crs(epsg=4326)
+print("Buffer + dissolve + simplify done")
+
+# Export simplified polygon for reuse
+unified.to_file("data/residential_buffer.gpkg", driver="GPKG")
+print("Saved to data/residential_buffer.gpkg")
 
 # --- Interactive HTML map ---
 bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
 center = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
 m = folium.Map(location=center, zoom_start=6, tiles="CartoDB positron")
 
-# Add built-up areas (original)
 folium.GeoJson(
-    gdf_map.to_json(),
-    name="Built-Up Areas",
+    unified.to_json(),
+    name="Residential Areas + 550 m Buffer",
     style_function=lambda _: {
         "fillColor": "#ff7800",
         "color": "#cc5500",
-        "weight": 0.5,
-        "fillOpacity": 0.5,
-    },
-    tooltip=folium.GeoJsonTooltip(fields=["COMMUNITY_CLASS", "LOCATION_DESCR"],
-                                   aliases=["Class", "Location"]),
-).add_to(m)
-
-# Add 550 m buffer (geometry only)
-buffer_geom = buffer_dissolved[["geometry"]]
-folium.GeoJson(
-    buffer_geom.to_json(),
-    name="550 m Buffer",
-    style_function=lambda _: {
-        "fillColor": "#3388ff",
-        "color": "#1155cc",
-        "weight": 0.5,
-        "fillOpacity": 0.2,
+        "weight": 0.8,
+        "fillOpacity": 0.4,
     },
 ).add_to(m)
 
@@ -55,4 +43,6 @@ folium.LayerControl().add_to(m)
 
 output_path = "built_up_areas_map.html"
 m.save(output_path)
-print(f"Map saved to {output_path}")
+import os
+size_mb = os.path.getsize(output_path) / 1_000_000
+print(f"Map saved to {output_path} ({size_mb:.1f} MB)")
