@@ -22,7 +22,7 @@ WIND_RASTER = "analysis/data/CAN_wind-speed_100m.tif"
 
 # Constraint layers
 PROTECTED_AREAS = "analysis/results/protected_areas.geojson"
-RESIDENTIAL_BUFFER = "analysis/results/residential_buffer.gpkg"
+RESIDENTIAL_BUFFER = "analysis/data/residential_buffer.gpkg"
 HYDRO_STATIONS = "analysis/results/hydro_stations.geojson"
 HYDRO_STATION_ZONES = "analysis/results/hydro_station_zones.geojson"
 HYDRO_LINES = "analysis/results/hydro_lines.geojson"
@@ -30,25 +30,25 @@ HYDRO_LINE_ZONES = "analysis/results/hydro_line_zones.geojson"
 ROADS = "analysis/results/roads.geojson"
 
 # Existing turbines for training
-TURBINES_EXCEL = "analysis/data/Ontario Turbine Coordinates.xlsx"
+TURBINES_EXCEL = "analysis/data/Wind_Turbine_Database_en.xlsx"
 
 # Output paths
 OUT_SUITABILITY_GEOJSON = "analysis/results/suitability_grid.geojson"
 OUT_ML_MODEL = "analysis/results/turbine_model.json"
 OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
 
-# Grid resolution for candidate points (degrees)
-GRID_SPACING = 0.05  # ~5km spacing
+# Grid resolution for candidate points
+GRID_SPACING = 0.05  # ~5km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
 
 # Suitability weights (rule-based scoring)
 WEIGHTS = {
     'wind_speed': 0.35,      # Most important: need wind
-    'road_proximity': 0.15,  # Access for construction
+    'road_proximity': 0.15,  # Access for construction - MIGHT BE LESS IMMPORTANT SINCE ONLY LARGE ROADS ARE INCLUDED
     'hydro_proximity': 0.20, # Connection to grid
     'exclusion': 0.30        # Hard constraints (protected, residential)
 }
 
-# Distance thresholds (in km)
+# Distance thresholds
 THRESHOLDS = {
     'min_wind_speed': 6.0,        # m/s minimum
     'max_road_distance': 20.0,    # km - too far = harder to build
@@ -67,19 +67,20 @@ ontario = gpd.read_file(ONTARIO_BOUNDARY).to_crs("EPSG:4326")
 ontario_bounds = ontario.total_bounds  # [minx, miny, maxx, maxy]
 
 # Existing turbines
-turbines_df = pd.read_excel(TURBINES_EXCEL, sheet_name="turbine_data")
+turbines_df = pd.read_excel(TURBINES_EXCEL)
 turbines_gdf = gpd.GeoDataFrame(
     turbines_df,
     geometry=gpd.points_from_xy(turbines_df.Longitude, turbines_df.Latitude),
     crs="EPSG:4326"
 )
 
-# Constraint layers
-protected = gpd.read_file(PROTECTED_AREAS).to_crs("EPSG:4326")
-residential = gpd.read_file(RESIDENTIAL_BUFFER).to_crs("EPSG:4326")
-roads = gpd.read_file(ROADS).to_crs("EPSG:4326")
-hydro_stations = gpd.read_file(HYDRO_STATIONS).to_crs("EPSG:4326")
-hydro_lines = gpd.read_file(HYDRO_LINES).to_crs("EPSG:4326")
+# Constraint layers - load and immediately project to metric CRS for distance calcs
+print("  Loading and projecting constraint layers...")
+protected = gpd.read_file(PROTECTED_AREAS).to_crs("EPSG:3347")
+residential = gpd.read_file(RESIDENTIAL_BUFFER).to_crs("EPSG:3347")
+roads = gpd.read_file(ROADS).to_crs("EPSG:3347")
+hydro_stations = gpd.read_file(HYDRO_STATIONS).to_crs("EPSG:3347")
+hydro_lines = gpd.read_file(HYDRO_LINES).to_crs("EPSG:3347")
 
 # Combine hydro for proximity calculation
 hydro_all = pd.concat([hydro_stations, hydro_lines], ignore_index=True)
@@ -139,13 +140,13 @@ def get_wind_speed(point, raster_data, transform):
     return 0
 
 
-def get_min_distance_km(point, gdf):
-    """Calculate minimum distance from point to any feature in gdf (in km)."""
-    if len(gdf) == 0:
+def get_min_distance_km(point, gdf_proj):
+    """Calculate minimum distance from point to any feature in gdf (in km).
+    Assumes gdf_proj is already in EPSG:3347."""
+    if len(gdf_proj) == 0:
         return 999999
-    # Project to metric CRS for accurate distance
+    # Project point to metric CRS for accurate distance
     point_proj = gpd.GeoSeries([point], crs="EPSG:4326").to_crs("EPSG:3347").iloc[0]
-    gdf_proj = gdf.to_crs("EPSG:3347")
     distances = gdf_proj.distance(point_proj)
     return distances.min() / 1000  # meters to km
 
