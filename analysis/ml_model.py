@@ -32,6 +32,9 @@ HYDRO_LINE_ZONES = "analysis/results/hydro_line_zones.geojson"
 ROADS = "analysis/results/roads.geojson"
 LAKES = "analysis/results/lakes.geojson"
 
+# Turbine buffer (300m exclusion zone)
+TURBINE_BUFFER = "analysis/results/turbine_buffer.geojson"
+
 # Existing turbines for training
 TURBINES_EXCEL = "analysis/data/Wind_Turbine_Database_en.xlsx"
 
@@ -41,7 +44,7 @@ OUT_ML_MODEL = "analysis/results/turbine_model.json"
 OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
 
 # Grid resolution for candidate points
-GRID_SPACING = 0.05  # ~5km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
+GRID_SPACING = 0.01  # ~1km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
 
 # Suitability weights (rule-based scoring)
 # Note: hard exclusions (protected areas, residential, lakes) are pre-filtered via spatial join
@@ -104,6 +107,10 @@ print(f"✓ Loaded {len(residential)} residential buffers")
 print(f"✓ Loaded {len(roads)} road segments")
 print(f"✓ Loaded {len(hydro_all)} hydro features")
 
+# Load turbine buffer (as exclusion zone)
+turbine_buffer = gpd.read_file(TURBINE_BUFFER).to_crs("EPSG:4326")
+print(f"✓ Loaded turbine buffer exclusion zone")
+
 
 # ============================================================================
 # 2. CREATE CANDIDATE GRID
@@ -132,6 +139,12 @@ print("  Removing candidates inside lakes...")
 in_lakes = gpd.sjoin(candidates_gdf, lakes[["geometry"]], how="inner", predicate="within")
 candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_lakes.index)]
 print(f"  ✓ {len(candidates_gdf)} candidates remain after lake exclusion")
+
+# Remove candidates that fall inside turbine buffer (can't build too close to existing turbines)
+print("  Removing candidates inside turbine buffer...")
+in_turbine_buffer = gpd.sjoin(candidates_gdf, turbine_buffer[["geometry"]], how="inner", predicate="within")
+candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_turbine_buffer.index)]
+print(f"  ✓ {len(candidates_gdf)} candidates remain after turbine buffer exclusion")
 
 # Pre-filter hard exclusions before the expensive per-point distance loop
 print("  Pre-filtering hard exclusion zones...")
@@ -173,6 +186,10 @@ candidates_gdf = candidates_gdf.reset_index(drop=True)
 # Project all candidates to metric CRS once (reused for every distance layer)
 candidates_3347 = candidates_gdf.to_crs("EPSG:3347")
 geoms_3347 = candidates_3347.geometry.values
+    
+# Compute distance to nearest existing turbine (for penalty)
+turbines_3347 = turbines_gdf.to_crs("EPSG:3347")
+candidates_gdf['dist_turbine_km'] = bulk_nearest_km(geoms_3347, turbines_3347)
 
 # Vectorized wind speed: numpy raster index lookup instead of per-point sampling
 lons_arr = candidates_gdf.geometry.x.values
@@ -188,8 +205,6 @@ print("  Computing road distances...")
 candidates_gdf['dist_road_km'] = bulk_nearest_km(geoms_3347, roads)
 print("  Computing hydro distances...")
 candidates_gdf['dist_hydro_km'] = bulk_nearest_km(geoms_3347, hydro_all)
-print("  Computing protected area distances...")
-candidates_gdf['dist_protected_km'] = bulk_nearest_km(geoms_3347, protected)
 print("  Computing residential distances...")
 candidates_gdf['dist_residential_km'] = bulk_nearest_km(geoms_3347, residential)
 
@@ -237,6 +252,10 @@ candidates_gdf['suitability_score'] = (
     WEIGHTS['road_proximity'] * candidates_gdf['road_score'] +
     WEIGHTS['hydro_proximity'] * candidates_gdf['hydro_score']
 ) * 100  # Scale to 0-100
+    
+# Penalize sites within 10km of a turbine (quadratic dropoff: 0x at 0m, 0.25x at 5km, 1x at 10km+)
+penalty = np.clip((candidates_gdf['dist_turbine_km'] / 10.0) ** 2, 0, 1)
+candidates_gdf['suitability_score'] *= penalty
 
 # Filter out candidates with insufficient wind
 candidates_gdf['suitable'] = candidates_gdf['wind_speed'] >= THRESHOLDS['min_wind_speed']
@@ -266,7 +285,6 @@ turbine_features = pd.DataFrame({
     'wind_speed':         t_wind,
     'dist_road_km':       bulk_nearest_km(t_geoms, roads),
     'dist_hydro_km':      bulk_nearest_km(t_geoms, hydro_all),
-    'dist_protected_km':  bulk_nearest_km(t_geoms, protected),
     'dist_residential_km':bulk_nearest_km(t_geoms, residential),
     'lon':                t_lons,
     'lat':                t_lats,
@@ -280,7 +298,7 @@ neg_sample = candidates_gdf.sample(
     random_state=42
 )
 neg_features = neg_sample[['wind_speed', 'dist_road_km', 'dist_hydro_km',
-                            'dist_protected_km', 'dist_residential_km', 'lon', 'lat']].copy()
+                            'dist_residential_km', 'lon', 'lat']].copy()
 neg_features['has_turbine'] = 0
 
 # Combine positive and negative examples
@@ -288,7 +306,7 @@ training_data = pd.concat([turbine_features, neg_features], ignore_index=True)
 
 # Prepare features — include lat/lon so the model learns spatial clustering patterns
 # (existing turbines concentrate in specific Ontario regions due to policy/grid access)
-feature_cols = ['wind_speed', 'dist_road_km', 'dist_hydro_km', 'dist_protected_km', 'dist_residential_km', 'lon', 'lat']
+feature_cols = ['wind_speed', 'dist_road_km', 'dist_hydro_km', 'dist_residential_km', 'lon', 'lat']
 X = training_data[feature_cols]
 y = training_data['has_turbine']
 
@@ -339,7 +357,7 @@ print("\nSaving results...")
 
 # Save full suitability grid
 output_gdf = candidates_gdf[['geometry', 'wind_speed', 'dist_road_km', 'dist_hydro_km', 
-                               'dist_protected_km', 'dist_residential_km', 'suitability_score', 
+                               'dist_residential_km', 'suitability_score', 
                                'ml_score', 'final_score', 'suitable']]
 output_gdf.to_file(OUT_SUITABILITY_GPKG, driver="GPKG", layer="suitability")
 print(f"✓ Saved suitability grid → {OUT_SUITABILITY_GPKG}")
