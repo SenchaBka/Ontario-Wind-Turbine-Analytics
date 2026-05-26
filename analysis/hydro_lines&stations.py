@@ -45,6 +45,15 @@ print("\n=== Utility lines by CLASS_SUBTYPE ===")
 print(lines["CLASS_SUBTYPE"].value_counts().to_string())
 print(f"\nTotal utility lines: {len(lines)}\n")
 
+# Suitability rings around hydro lines — largest first so smaller sit on top
+# (radius_km, label, colour)
+LINE_RINGS = [
+    (30, "Line: Poor (15–30 km)",      "#d7191c"),
+    (15, "Line: Moderate (5–15 km)",   "#fdae61"),
+    (5,  "Line: Good (1–5 km)",        "#ffffbf"),
+    (1,  "Line: Excellent (< 1 km)",   "#1a9641"),
+]
+
 # Colour map for line subtypes
 LINE_COLOURS = {
     "Hydro Line":                  "#1f78b4",
@@ -63,6 +72,22 @@ for radius_km, label, colour in RINGS:
     buffered = gpd.GeoDataFrame(geometry=hydro_proj.geometry.buffer(radius_km * 1000), crs=hydro_proj.crs)
     dissolved = buffered.dissolve().to_crs(epsg=4326)
 
+    layer = folium.FeatureGroup(name=label, show=True).add_to(m)
+    folium.GeoJson(
+        data=json.loads(dissolved.to_json()),
+        style_function=lambda _, c=colour: {
+            "color":       c,
+            "weight":      1.5,
+            "fillColor":   c,
+            "fillOpacity": 0.15,
+        },
+    ).add_to(layer)
+
+# Suitability buffers around all hydro lines combined (largest first)
+hydro_lines = lines[lines["CLASS_SUBTYPE"].isin(LINE_COLOURS.keys())].to_crs(epsg=3347)
+for radius_km, label, colour in LINE_RINGS:
+    buffered = gpd.GeoDataFrame(geometry=hydro_lines.geometry.buffer(radius_km * 1000), crs=hydro_lines.crs)
+    dissolved = buffered.dissolve().to_crs(epsg=4326)
     layer = folium.FeatureGroup(name=label, show=True).add_to(m)
     folium.GeoJson(
         data=json.loads(dissolved.to_json()),
@@ -120,7 +145,17 @@ legend_html = """
   <span style="color:#ffffbf; -webkit-text-stroke:1px #aaa">&#9679;</span> Good (5–10 km)<br>
   <span style="color:#fdae61">&#9679;</span> Moderate (10–25 km)<br>
   <span style="color:#d7191c">&#9679;</span> Poor (25–50 km)<br>
-  <span style="color:blue">&#9679;</span> Hydro Station<br>
+  <span style="color:#003f88">&#9679;</span> Hydro Station<br>
+  <hr style="margin:6px 0">
+  <b>Distance to Hydro Line</b><br>
+  <span style="color:#1a9641">&#9644;</span> Excellent (&lt; 1 km)<br>
+  <span style="color:#ffffbf; -webkit-text-stroke:1px #aaa">&#9644;</span> Good (1–5 km)<br>
+  <span style="color:#fdae61">&#9644;</span> Moderate (5–15 km)<br>
+  <span style="color:#d7191c">&#9644;</span> Poor (15–30 km)<br>
+  <hr style="margin:6px 0">
+  <span style="color:#1f78b4">&#9644;</span> Hydro Line<br>
+  <span style="color:#a6cee3">&#9644;</span> Unknown Transmission Line<br>
+  <span style="color:#33a02c">&#9644;</span> Submerged Hydro Line<br>
 </div>
 """
 m.get_root().html.add_child(folium.Element(legend_html))
