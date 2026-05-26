@@ -266,6 +266,29 @@
       }
     });
 
+    // ── Roads ─────────────────────────────────────────────────────
+    fetch(`${API}/api/roads`)
+      .then(r => r.json())
+      .then(geojson => {
+        roadsLayer = L.geoJSON(geojson, {
+          style: f => ROAD_STYLES[f.properties.road_class] || {color: '#999', weight: 0.5, opacity: 0.5}
+        });
+      });
+
+    roadsToggle.addEventListener('click', () => {
+      if (!roadsLayer) return;
+      roadsVisible = !roadsVisible;
+      if (roadsVisible) {
+        roadsLayer.addTo(map);
+        roadsToggle.textContent = 'Roads ON';
+        roadsToggle.classList.remove('off');
+      } else {
+        map.removeLayer(roadsLayer);
+        roadsToggle.textContent = 'Roads OFF';
+        roadsToggle.classList.add('off');
+      }
+    });
+
     // ── Hydro stations ────────────────────────────────────────────
     const HYDRO_LINE_COLOURS = {
       'Hydro Line':                '#1f78b4',
