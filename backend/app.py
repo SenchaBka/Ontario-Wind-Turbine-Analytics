@@ -18,6 +18,7 @@ HYDRO_STATIONS_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis',
 HYDRO_ST_ZONES_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'hydro_station_zones.geojson')
 HYDRO_LINES_PATH     = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'hydro_lines.geojson')
 HYDRO_LN_ZONES_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'hydro_line_zones.geojson')
+ROADS_PATH           = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'roads.geojson')
 
 
 def extract_year(val):
@@ -95,6 +96,13 @@ def get_hydro_lines():
 @app.route('/api/hydro-line-zones')
 def get_hydro_line_zones():
     return Response(_line_zones_json, mimetype='application/json')
+
+
+@app.route('/api/roads')
+def get_roads():
+    """Return the roads GeoJSON with road_class property for frontend styling."""
+    gdf = gpd.read_file(ROADS_PATH)
+    return Response(gdf.to_json(), mimetype='application/json')
 
 
 if __name__ == '__main__':
