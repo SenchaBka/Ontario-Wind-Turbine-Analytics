@@ -7,15 +7,20 @@ https://globalwindatlas.info/en/download/gis-files
 https://geohub.lio.gov.on.ca/datasets/built-up-area/explore?location=43.997557%2C-79.332619%2C10
 https://geohub.lio.gov.on.ca/datasets/mnrf::utility-site/explore?location=43.520091%2C-78.756479%2C7
 https://geohub.lio.gov.on.ca/datasets/mnrf::utility-line/explore?location=49.634309%2C-82.752813%2C5
+https://geohub.lio.gov.on.ca/datasets/mnrf::ontario-road-network-orn-road-net-element/explore?location=43.637580%2C-79.374191%2C14
+https://geohub.lio.gov.on.ca/maps/mnrf::ontario-railway-network-orwn/about
+https://geohub.lio.gov.on.ca/datasets/greenbelt-designation/explore?location=43.720698%2C-79.410251%2C8
+https://geohub.lio.gov.on.ca/datasets/a10198b53f894026b92df6828054584d_2/explore?location=49.189941%2C-84.732700%2C4
+https://geohub.lio.gov.on.ca/datasets/provincial-park-regulated/explore?location=44.368344%2C-78.219877%2C8
 
 work on next:
-energy demand
+energy demand?
 Terrain?
 distance to roads and railways
 Provincial Parks & Conservation Reserves
 Provincially Significant Wetlands 
 Slope / Terrain?
-IESO Zonal Demand Data
+IESO Zonal Demand Data?
 Population Density?
 
 humidity?
