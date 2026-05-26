@@ -9,6 +9,8 @@ import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 from shapely.geometry import Point, box
+import shapely
+from shapely.strtree import STRtree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, roc_auc_score
@@ -34,7 +36,7 @@ LAKES = "analysis/results/lakes.geojson"
 TURBINES_EXCEL = "analysis/data/Wind_Turbine_Database_en.xlsx"
 
 # Output paths
-OUT_SUITABILITY_GEOJSON = "analysis/results/suitability_grid.geojson"
+OUT_SUITABILITY_GPKG = "analysis/results/suitability_grid.gpkg"
 OUT_ML_MODEL = "analysis/results/turbine_model.json"
 OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
 
@@ -149,58 +151,50 @@ print(f"  ✓ {len(candidates_gdf)} candidates remain (removed {before - len(can
 
 
 # ============================================================================
-# 3. EXTRACT FEATURES FOR EACH CANDIDATE
+# 3. EXTRACT FEATURES FOR EACH CANDIDATE (VECTORIZED)
 # ============================================================================
-print("\nExtracting features for candidates...")
-
-def get_wind_speed(point, raster_data, transform):
-    """Sample wind speed at point from raster."""
-    row, col = rasterio.transform.rowcol(transform, point.x, point.y)
-    try:
-        if 0 <= row < raster_data.shape[0] and 0 <= col < raster_data.shape[1]:
-            value = raster_data[row, col]
-            return value if not np.isnan(value) else 0
-    except:
-        pass
-    return 0
+print("\nExtracting features for candidates (vectorized)...")
 
 
-def get_min_distance_km(point, gdf_proj):
-    """Calculate minimum distance from point to any feature in gdf (in km).
-    Assumes gdf_proj is already in EPSG:3347."""
-    if len(gdf_proj) == 0:
-        return 999999
-    # Project point to metric CRS for accurate distance
-    point_proj = gpd.GeoSeries([point], crs="EPSG:4326").to_crs("EPSG:3347").iloc[0]
-    distances = gdf_proj.distance(point_proj)
-    return distances.min() / 1000  # meters to km
+def bulk_nearest_km(query_geoms_3347, target_gdf_proj):
+    """Vectorized nearest-neighbour distances (km) for all query geometries.
+    Uses STRtree for O(n log m) performance. Both inputs must be in EPSG:3347."""
+    if len(target_gdf_proj) == 0:
+        return np.full(len(query_geoms_3347), 999999.0)
+    tree = STRtree(target_gdf_proj.geometry.values)
+    nearest_idx = tree.nearest(query_geoms_3347)  # vectorized: one call for all points
+    nearest_geoms = target_gdf_proj.geometry.values[nearest_idx]
+    return shapely.distance(query_geoms_3347, nearest_geoms) / 1000
 
 
-# Extract features
-features = []
-for count, (idx, row) in enumerate(candidates_gdf.iterrows(), 1):
-    point = row.geometry
-    
-    wind = get_wind_speed(point, wind_data, wind_transform)
-    dist_road = get_min_distance_km(point, roads)
-    dist_hydro = get_min_distance_km(point, hydro_all)
-    dist_protected = get_min_distance_km(point, protected)
-    dist_residential = get_min_distance_km(point, residential)
-    
-    features.append({
-        'wind_speed': wind,
-        'dist_road_km': dist_road,
-        'dist_hydro_km': dist_hydro,
-        'dist_protected_km': dist_protected,
-        'dist_residential_km': dist_residential,
-        'lon': point.x,
-        'lat': point.y
-    })
-    
-    if count % 1000 == 0:
-        print(f"  Processed {count}/{len(candidates_gdf)} points...")
+# Reset index after pre-filtering so array assignment aligns correctly
+candidates_gdf = candidates_gdf.reset_index(drop=True)
 
-candidates_gdf = candidates_gdf.join(pd.DataFrame(features))
+# Project all candidates to metric CRS once (reused for every distance layer)
+candidates_3347 = candidates_gdf.to_crs("EPSG:3347")
+geoms_3347 = candidates_3347.geometry.values
+
+# Vectorized wind speed: numpy raster index lookup instead of per-point sampling
+lons_arr = candidates_gdf.geometry.x.values
+lats_arr = candidates_gdf.geometry.y.values
+rows, cols = rasterio.transform.rowcol(wind_transform, lons_arr, lats_arr)
+rows = np.clip(np.asarray(rows), 0, wind_data.shape[0] - 1)
+cols = np.clip(np.asarray(cols), 0, wind_data.shape[1] - 1)
+wind_vals = wind_data[rows, cols].astype(float)
+candidates_gdf['wind_speed'] = np.where(wind_vals < 0, 0.0, wind_vals)
+
+# Vectorized distances via STRtree bulk nearest-neighbour
+print("  Computing road distances...")
+candidates_gdf['dist_road_km'] = bulk_nearest_km(geoms_3347, roads)
+print("  Computing hydro distances...")
+candidates_gdf['dist_hydro_km'] = bulk_nearest_km(geoms_3347, hydro_all)
+print("  Computing protected area distances...")
+candidates_gdf['dist_protected_km'] = bulk_nearest_km(geoms_3347, protected)
+print("  Computing residential distances...")
+candidates_gdf['dist_residential_km'] = bulk_nearest_km(geoms_3347, residential)
+
+candidates_gdf['lon'] = lons_arr
+candidates_gdf['lat'] = lats_arr
 
 print(f"✓ Extracted features for {len(candidates_gdf)} candidates")
 
@@ -257,26 +251,27 @@ print(f"  Mean suitability score: {candidates_gdf[candidates_gdf['suitable']]['s
 print("\nTraining ML model from existing turbines...")
 
 # Extract features for existing turbines (positive examples)
-turbine_features = []
-for idx, row in turbines_gdf.iterrows():
-    point = row.geometry
-    
-    wind = get_wind_speed(point, wind_data, wind_transform)
-    dist_road = get_min_distance_km(point, roads)
-    dist_hydro = get_min_distance_km(point, hydro_all)
-    dist_protected = get_min_distance_km(point, protected)
-    dist_residential = get_min_distance_km(point, residential)
-    
-    turbine_features.append({
-        'wind_speed': wind,
-        'dist_road_km': dist_road,
-        'dist_hydro_km': dist_hydro,
-        'dist_protected_km': dist_protected,
-        'dist_residential_km': dist_residential,
-        'lon': point.x,
-        'lat': point.y,
-        'has_turbine': 1
-    })
+# Vectorized turbine feature extraction
+turbines_3347 = turbines_gdf.to_crs("EPSG:3347")
+t_geoms = turbines_3347.geometry.values
+t_lons = turbines_gdf.geometry.x.values
+t_lats = turbines_gdf.geometry.y.values
+t_rows, t_cols = rasterio.transform.rowcol(wind_transform, t_lons, t_lats)
+t_rows = np.clip(np.asarray(t_rows), 0, wind_data.shape[0] - 1)
+t_cols = np.clip(np.asarray(t_cols), 0, wind_data.shape[1] - 1)
+t_wind = wind_data[t_rows, t_cols].astype(float)
+t_wind = np.where(t_wind < 0, 0.0, t_wind)
+
+turbine_features = pd.DataFrame({
+    'wind_speed':         t_wind,
+    'dist_road_km':       bulk_nearest_km(t_geoms, roads),
+    'dist_hydro_km':      bulk_nearest_km(t_geoms, hydro_all),
+    'dist_protected_km':  bulk_nearest_km(t_geoms, protected),
+    'dist_residential_km':bulk_nearest_km(t_geoms, residential),
+    'lon':                t_lons,
+    'lat':                t_lats,
+    'has_turbine':        1,
+})
 
 # Create negative examples — sample from ALL candidates (not just suitable)
 # This gives the model genuinely non-turbine locations, not just undeveloped good sites
@@ -284,22 +279,12 @@ neg_sample = candidates_gdf.sample(
     n=min(len(turbines_gdf) * 3, len(candidates_gdf)),
     random_state=42
 )
-
-negative_features = []
-for idx, row in neg_sample.iterrows():
-    negative_features.append({
-        'wind_speed': row['wind_speed'],
-        'dist_road_km': row['dist_road_km'],
-        'dist_hydro_km': row['dist_hydro_km'],
-        'dist_protected_km': row['dist_protected_km'],
-        'dist_residential_km': row['dist_residential_km'],
-        'lon': row['lon'],
-        'lat': row['lat'],
-        'has_turbine': 0
-    })
+neg_features = neg_sample[['wind_speed', 'dist_road_km', 'dist_hydro_km',
+                            'dist_protected_km', 'dist_residential_km', 'lon', 'lat']].copy()
+neg_features['has_turbine'] = 0
 
 # Combine positive and negative examples
-training_data = pd.DataFrame(turbine_features + negative_features)
+training_data = pd.concat([turbine_features, neg_features], ignore_index=True)
 
 # Prepare features — include lat/lon so the model learns spatial clustering patterns
 # (existing turbines concentrate in specific Ontario regions due to policy/grid access)
@@ -356,8 +341,8 @@ print("\nSaving results...")
 output_gdf = candidates_gdf[['geometry', 'wind_speed', 'dist_road_km', 'dist_hydro_km', 
                                'dist_protected_km', 'dist_residential_km', 'suitability_score', 
                                'ml_score', 'final_score', 'suitable']]
-output_gdf.to_file(OUT_SUITABILITY_GEOJSON, driver="GeoJSON")
-print(f"✓ Saved suitability grid → {OUT_SUITABILITY_GEOJSON}")
+output_gdf.to_file(OUT_SUITABILITY_GPKG, driver="GPKG", layer="suitability")
+print(f"✓ Saved suitability grid → {OUT_SUITABILITY_GPKG}")
 
 # Save top 100 candidate sites
 top_sites = candidates_gdf[candidates_gdf['suitable']].nlargest(100, 'final_score')
