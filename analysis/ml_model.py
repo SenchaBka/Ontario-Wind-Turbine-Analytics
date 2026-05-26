@@ -42,19 +42,19 @@ OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
 GRID_SPACING = 0.05  # ~5km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
 
 # Suitability weights (rule-based scoring)
+# Note: hard exclusions (protected areas, residential, lakes) are pre-filtered via spatial join
+# before this scoring runs, so no exclusion term is needed here.
 WEIGHTS = {
-    'wind_speed': 0.35,      # Most important: need wind
-    'road_proximity': 0.15,  # Access for construction - MIGHT BE LESS IMMPORTANT SINCE ONLY LARGE ROADS ARE INCLUDED
-    'hydro_proximity': 0.20, # Connection to grid
-    'exclusion': 0.30        # Hard constraints (protected, residential)
+    'wind_speed': 0.60,      # Most important: need wind
+    'road_proximity': 0.10,  # Access for construction
+    'hydro_proximity': 0.30, # Connection to grid
 }
 
 # Distance thresholds
 THRESHOLDS = {
-    'min_wind_speed': 6.0,        # m/s minimum
-    'max_road_distance': 20.0,    # km - too far = harder to build
+    'min_wind_speed': 5.0,        # m/s minimum
+    'max_road_distance': 50.0,    # km - too far = harder to build
     'max_hydro_distance': 50.0,   # km - too far = expensive connection
-    'min_protected_distance': 1.0 # km - buffer from parks
 }
 
 
@@ -130,6 +130,22 @@ print("  Removing candidates inside lakes...")
 in_lakes = gpd.sjoin(candidates_gdf, lakes[["geometry"]], how="inner", predicate="within")
 candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_lakes.index)]
 print(f"  ✓ {len(candidates_gdf)} candidates remain after lake exclusion")
+
+# Pre-filter hard exclusions before the expensive per-point distance loop
+print("  Pre-filtering hard exclusion zones...")
+before = len(candidates_gdf)
+
+# Remove points directly inside residential buffer
+residential_4326 = residential.to_crs("EPSG:4326")
+in_res = gpd.sjoin(candidates_gdf, residential_4326[["geometry"]], how="inner", predicate="within")
+candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_res.index)]
+
+# Remove points directly inside protected areas
+protected_4326 = protected.to_crs("EPSG:4326")
+in_prot = gpd.sjoin(candidates_gdf, protected_4326[["geometry"]], how="inner", predicate="within")
+candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_prot.index)]
+
+print(f"  ✓ {len(candidates_gdf)} candidates remain (removed {before - len(candidates_gdf)} excluded points)")
 
 
 # ============================================================================
@@ -220,25 +236,16 @@ candidates_gdf['hydro_score'] = 1 - normalize(
     THRESHOLDS['max_hydro_distance']
 )
 
-# Exclusion score (hard constraints)
-candidates_gdf['exclusion_score'] = (
-    (candidates_gdf['dist_protected_km'] >= THRESHOLDS['min_protected_distance']).astype(float) *
-    (candidates_gdf['dist_residential_km'] > 0).astype(float)  # Must be outside residential buffer
-)
-
 # Combined weighted score
+# All remaining candidates are already outside hard exclusion zones (pre-filtered above)
 candidates_gdf['suitability_score'] = (
     WEIGHTS['wind_speed'] * candidates_gdf['wind_score'] +
     WEIGHTS['road_proximity'] * candidates_gdf['road_score'] +
-    WEIGHTS['hydro_proximity'] * candidates_gdf['hydro_score'] +
-    WEIGHTS['exclusion'] * candidates_gdf['exclusion_score']
+    WEIGHTS['hydro_proximity'] * candidates_gdf['hydro_score']
 ) * 100  # Scale to 0-100
 
-# Filter out completely unsuitable sites
-candidates_gdf['suitable'] = (
-    (candidates_gdf['wind_speed'] >= THRESHOLDS['min_wind_speed']) &
-    (candidates_gdf['exclusion_score'] == 1)
-)
+# Filter out candidates with insufficient wind
+candidates_gdf['suitable'] = candidates_gdf['wind_speed'] >= THRESHOLDS['min_wind_speed']
 
 print(f"✓ {candidates_gdf['suitable'].sum()} suitable sites found")
 print(f"  Mean suitability score: {candidates_gdf[candidates_gdf['suitable']]['suitability_score'].mean():.1f}")
@@ -266,31 +273,37 @@ for idx, row in turbines_gdf.iterrows():
         'dist_hydro_km': dist_hydro,
         'dist_protected_km': dist_protected,
         'dist_residential_km': dist_residential,
+        'lon': point.x,
+        'lat': point.y,
         'has_turbine': 1
     })
 
-# Create negative examples (random non-turbine locations)
-suitable_candidates = candidates_gdf[candidates_gdf['suitable']].sample(
-    n=min(len(turbines_gdf) * 3, len(candidates_gdf[candidates_gdf['suitable']])),
+# Create negative examples — sample from ALL candidates (not just suitable)
+# This gives the model genuinely non-turbine locations, not just undeveloped good sites
+neg_sample = candidates_gdf.sample(
+    n=min(len(turbines_gdf) * 3, len(candidates_gdf)),
     random_state=42
 )
 
 negative_features = []
-for idx, row in suitable_candidates.iterrows():
+for idx, row in neg_sample.iterrows():
     negative_features.append({
         'wind_speed': row['wind_speed'],
         'dist_road_km': row['dist_road_km'],
         'dist_hydro_km': row['dist_hydro_km'],
         'dist_protected_km': row['dist_protected_km'],
         'dist_residential_km': row['dist_residential_km'],
+        'lon': row['lon'],
+        'lat': row['lat'],
         'has_turbine': 0
     })
 
 # Combine positive and negative examples
 training_data = pd.DataFrame(turbine_features + negative_features)
 
-# Prepare features and labels
-feature_cols = ['wind_speed', 'dist_road_km', 'dist_hydro_km', 'dist_protected_km', 'dist_residential_km']
+# Prepare features — include lat/lon so the model learns spatial clustering patterns
+# (existing turbines concentrate in specific Ontario regions due to policy/grid access)
+feature_cols = ['wind_speed', 'dist_road_km', 'dist_hydro_km', 'dist_protected_km', 'dist_residential_km', 'lon', 'lat']
 X = training_data[feature_cols]
 y = training_data['has_turbine']
 
