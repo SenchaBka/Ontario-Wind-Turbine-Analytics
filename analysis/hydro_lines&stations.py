@@ -20,10 +20,10 @@ OUT_LINE_ZONES       = "analysis/results/hydro_line_zones.geojson"
 # (radius_km, label, colour)
 # ---------------------------------------------------------------------------
 RINGS = [
-    (50, "Poor (25–50 km)",      "#d7191c"),
-    (25, "Moderate (10–25 km)",  "#fdae61"),
-    (10, "Good (5–10 km)",       "#ffffbf"),
-    (5,  "Excellent (< 5 km)",   "#1a9641"),
+    (50, "Poor (25–50 km)",      "#4A1820"),
+    (25, "Moderate (10–25 km)",  "#B92E2C"),
+    (10, "Good (5–10 km)",       "#F77B2C"),
+    (5,  "Excellent (< 5 km)",   "#6ECE58"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -52,10 +52,10 @@ print(f"\nTotal utility lines: {len(lines)}\n")
 # Suitability rings around hydro lines — largest first so smaller sit on top
 # (radius_km, label, colour)
 LINE_RINGS = [
-    (30, "Line: Poor (15–30 km)",      "#d7191c"),
-    (15, "Line: Moderate (5–15 km)",   "#fdae61"),
-    (5,  "Line: Good (1–5 km)",        "#ffffbf"),
-    (1,  "Line: Excellent (< 1 km)",   "#1a9641"),
+    (30, "Line: Poor (15–30 km)",      "#4A1820"),
+    (15, "Line: Moderate (5–15 km)",   "#B92E2C"),
+    (5,  "Line: Good (1–5 km)",        "#F77B2C"),
+    (1,  "Line: Excellent (< 1 km)",   "#6ECE58"),
 ]
 
 # Colour map for line subtypes
@@ -129,9 +129,9 @@ for _, row in hydro_wgs.iterrows():
     folium.CircleMarker(
         location=[row.geometry.y, row.geometry.x],
         radius=6,
-        color="#003f88",
+        color="#E04E27",
         fill=True,
-        fill_color="#003f88",
+        fill_color="#F77B2C",
         fill_opacity=1.0,
         tooltip=label,
         popup=folium.Popup(f"<b>{label}</b>", max_width=200),
