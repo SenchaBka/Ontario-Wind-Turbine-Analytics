@@ -12,6 +12,7 @@ https://geohub.lio.gov.on.ca/maps/mnrf::ontario-railway-network-orwn/about
 https://geohub.lio.gov.on.ca/datasets/greenbelt-designation/explore?location=43.720698%2C-79.410251%2C8
 https://geohub.lio.gov.on.ca/datasets/a10198b53f894026b92df6828054584d_2/explore?location=49.189941%2C-84.732700%2C4
 https://geohub.lio.gov.on.ca/datasets/provincial-park-regulated/explore?location=44.368344%2C-78.219877%2C8
+https://geohub.lio.gov.on.ca/datasets/mnrf::ontario-hydro-network-ohn-waterbody/explore?location=44.356364%2C-79.324936%2C9
 
 work on next:
 energy demand?
@@ -19,7 +20,6 @@ Terrain?
 distance to roads and railways
 Provincial Parks & Conservation Reserves
 Provincially Significant Wetlands 
-Slope / Terrain?
 IESO Zonal Demand Data?
 Population Density?
 
