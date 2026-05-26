@@ -170,6 +170,7 @@
     <button id="wind-toggle" class="map-toggle off">Wind Speed OFF</button>
     <button id="res-toggle" class="map-toggle off">Residential Buffer OFF</button>
     <button id="roads-toggle" class="map-toggle off">Roads OFF</button>
+    <button id="protected-toggle" class="map-toggle off">Protected Areas OFF</button>
     <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
     <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
   </div>
@@ -190,6 +191,8 @@
     let resVisible = false;
     let roadsLayer = null;
     let roadsVisible = false;
+    let protectedLayer = null;
+    let protectedVisible = false;
     let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
     let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
 
@@ -197,6 +200,7 @@
     const windLegend           = document.getElementById('wind-legend');
     const resToggle            = document.getElementById('res-toggle');
     const roadsToggle          = document.getElementById('roads-toggle');
+    const protectedToggle      = document.getElementById('protected-toggle');
     const hydroStationsToggle  = document.getElementById('hydro-stations-toggle');
     const hydroLinesToggle     = document.getElementById('hydro-lines-toggle');
     const hydroLegend          = document.getElementById('hydro-legend');
@@ -205,6 +209,12 @@
       "Freeway":               {color: "#1a1a1a", weight: 1.5, opacity: 0.9},
       "Expressway / Highway":  {color: "#3a3a3a", weight: 1.2, opacity: 0.85},
       "Arterial":              {color: "#666666", weight: 0.8, opacity: 0.7}
+    };
+
+    const PROTECTED_STYLES = {
+      "Greenbelt":             {color: "#99d8c9", fillColor: "#99d8c9", weight: 1, fillOpacity: 0.25},
+      "Conservation Reserve":  {color: "#2ca25f", fillColor: "#2ca25f", weight: 1, fillOpacity: 0.3},
+      "Provincial Park":       {color: "#006d2c", fillColor: "#006d2c", weight: 1, fillOpacity: 0.35}
     };
 
     function updateHydroLegend() {
@@ -286,6 +296,29 @@
         map.removeLayer(roadsLayer);
         roadsToggle.textContent = 'Roads OFF';
         roadsToggle.classList.add('off');
+      }
+    });
+
+    // ── Protected Areas ───────────────────────────────────────────
+    fetch(`${API}/api/protected-areas`)
+      .then(r => r.json())
+      .then(geojson => {
+        protectedLayer = L.geoJSON(geojson, {
+          style: f => PROTECTED_STYLES[f.properties.protected_type] || {color: '#888', fillColor: '#888', weight: 1, fillOpacity: 0.2}
+        });
+      });
+
+    protectedToggle.addEventListener('click', () => {
+      if (!protectedLayer) return;
+      protectedVisible = !protectedVisible;
+      if (protectedVisible) {
+        protectedLayer.addTo(map);
+        protectedToggle.textContent = 'Protected Areas ON';
+        protectedToggle.classList.remove('off');
+      } else {
+        map.removeLayer(protectedLayer);
+        protectedToggle.textContent = 'Protected Areas OFF';
+        protectedToggle.classList.add('off');
       }
     });
 
