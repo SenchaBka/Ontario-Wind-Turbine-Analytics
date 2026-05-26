@@ -175,6 +175,7 @@
     <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
     <button id="sites-toggle" class="map-toggle off">Top Sites OFF</button>
     <button id="lakes-toggle" class="map-toggle off">Lakes OFF</button>
+      <button id="turbine-buffer-toggle" class="map-toggle off">Turbine Buffer OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -200,6 +201,9 @@
     let topSitesLayer = null, topSitesVisible = false;
     let lakesLayer = null, lakesVisible = false;
 
+      let turbineBufferVisible = false;
+      const turbineBufferToggle = document.getElementById('turbine-buffer-toggle');
+
     const windToggle           = document.getElementById('wind-toggle');
     const windLegend           = document.getElementById('wind-legend');
     const resToggle            = document.getElementById('res-toggle');
@@ -216,6 +220,33 @@
       "Expressway / Highway":  {color: "#3a3a3a", weight: 1.2, opacity: 0.85},
       "Arterial":              {color: "#666666", weight: 0.8, opacity: 0.7}
     };
+    
+      // Turbine Buffer Layer
+      let turbineBufferLayer = null;
+      fetch(`${API}/api/turbine-buffer`)
+        .then(r => r.json())
+        .then(geojson => {
+          turbineBufferLayer = L.geoJSON(geojson, {
+            style: { color: '#8000ff', fillColor: '#b266ff', fillOpacity: 0.25, weight: 1.2 }
+          });
+            layerControl.addOverlay(turbineBufferLayer, "Turbine Buffer (700m)");
+            // Enable toggle button after layer loads
+            turbineBufferToggle.disabled = false;
+          });
+
+      turbineBufferToggle.addEventListener('click', () => {
+        if (!turbineBufferLayer) return;
+        turbineBufferVisible = !turbineBufferVisible;
+        if (turbineBufferVisible) {
+          turbineBufferLayer.addTo(map);
+          turbineBufferToggle.textContent = 'Turbine Buffer ON';
+          turbineBufferToggle.classList.remove('off');
+        } else {
+          map.removeLayer(turbineBufferLayer);
+          turbineBufferToggle.textContent = 'Turbine Buffer OFF';
+          turbineBufferToggle.classList.add('off');
+        }
+        });
 
     const PROTECTED_STYLES = {
       "Greenbelt":             {color: "#99d8c9", fillColor: "#99d8c9", weight: 1, fillOpacity: 0.25},
