@@ -485,6 +485,14 @@
           }),
           onEachFeature: (f, layer) => {
             const p = f.properties;
+            // --- Price calculation (assume 3.5 MW) ---
+            const MW = 3.5;
+            const turbineCost = Math.round(MW * 1000000);
+            const roadAccess = Math.round((p.dist_road_km ?? 0) * 62000);
+            const gridConnection = Math.round((p.dist_hydro_km ?? 0) * 200000);
+            const subtotal = Math.round(turbineCost + roadAccess + gridConnection);
+            const softCosts = Math.round(subtotal * 0.15);
+            const totalCost = Math.round(subtotal + softCosts);
             layer.bindPopup(
               `<b>Top Candidate Site</b><br>` +
               `Final score: <b>${p.final_score?.toFixed(1)}</b><br>` +
@@ -492,7 +500,15 @@
               `ML score: ${p.ml_score?.toFixed(2)}<br>` +
               `Wind: ${p.wind_speed?.toFixed(1)} m/s<br>` +
               `Road dist: ${p.dist_road_km?.toFixed(1)} km<br>` +
-              `Hydro dist: ${p.dist_hydro_km?.toFixed(1)} km`
+              `Hydro dist: ${p.dist_hydro_km?.toFixed(1)} km<br>` +
+              `<hr style='margin:6px 0'>` +
+              `<b>Estimated Cost (3.5 MW):</b><br>` +
+              `Turbine: $${turbineCost.toLocaleString()}<br>` +
+              `Road Access: $${roadAccess.toLocaleString()}<br>` +
+              `Grid Connection: $${gridConnection.toLocaleString()}<br>` +
+              `Subtotal: $${subtotal.toLocaleString()}<br>` +
+              `Soft Costs (15%): $${softCosts.toLocaleString()}<br>` +
+              `<b>TOTAL: $${totalCost.toLocaleString()}</b>`
             );
           },
         });
