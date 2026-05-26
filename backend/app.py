@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import geopandas as gpd
-from flask import Flask, jsonify, request, send_file, Response
+from flask import Flask, jsonify, send_file, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -51,23 +51,9 @@ with open(HYDRO_LINES_PATH)     as f: _hydro_lines_json   = f.read()
 with open(HYDRO_LN_ZONES_PATH)  as f: _line_zones_json    = f.read()
 
 
-@app.route('/api/years')
-def get_years():
-    years = sorted(df['_year'].dropna().unique().astype(int).tolist())
-    return jsonify({'min': years[0], 'max': years[-1]})
-
-
 @app.route('/api/turbines')
 def get_turbines():
-    year = request.args.get('year', type=int)
-
-    if year is None:
-        filtered = df
-    else:
-        filtered = df[df['_year'].notna() & (df['_year'] <= year)]
-
-    # Return only the columns needed for the map + popup
-    result = filtered.drop(columns=['_year']).fillna('N/A')
+    result = df.drop(columns=['_year']).fillna('N/A')
     return jsonify(result.to_dict(orient='records'))
 
 

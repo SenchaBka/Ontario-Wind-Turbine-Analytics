@@ -52,26 +52,6 @@
     #controls label {
       font-weight: 500;
       white-space: nowrap;
-      min-width: 80px;
-    }
-
-    #year-slider {
-      flex: 1;
-      cursor: pointer;
-      accent-color: #1a1a2e;
-    }
-
-    #year-display {
-      font-size: 1.1rem;
-      font-weight: 600;
-      min-width: 50px;
-      text-align: right;
-    }
-
-    #count {
-      font-size: 0.85rem;
-      color: #666;
-      white-space: nowrap;
     }
 
     .map-toggle {
@@ -153,8 +133,7 @@
 <body>
 
   <header>
-    <h1>Ontario Wind Turbines</h1>
-    <span id="header-range"></span>
+    <h1>Ontario Wind Energy Suitability</h1>
   </header>
 
   <div id="map">
@@ -188,10 +167,6 @@
   </div>
 
   <div id="controls">
-    <label for="year-slider">Year built by:</label>
-    <input type="range" id="year-slider" />
-    <span id="year-display"></span>
-    <span id="count"></span>
     <button id="wind-toggle" class="map-toggle off">Wind Speed OFF</button>
     <button id="res-toggle" class="map-toggle off">Residential Buffer OFF</button>
     <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
@@ -215,9 +190,6 @@
     let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
     let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
 
-    const slider               = document.getElementById('year-slider');
-    const yearDisplay          = document.getElementById('year-display');
-    const countEl              = document.getElementById('count');
     const windToggle           = document.getElementById('wind-toggle');
     const windLegend           = document.getElementById('wind-legend');
     const resToggle            = document.getElementById('res-toggle');
@@ -373,47 +345,24 @@
     });
 
     // ── Turbines ──────────────────────────────────────────────────
-    fetch(`${API}/api/years`)
+    fetch(`${API}/api/turbines`)
       .then(r => r.json())
-      .then(({ min, max }) => {
-        slider.min = min;
-        slider.max = max;
-        slider.value = max;
-        yearDisplay.textContent = max;
-        document.getElementById('header-range').textContent = `${min} – ${max}`;
-        loadTurbines(max);
-      });
-
-    slider.addEventListener('input', () => {
-      yearDisplay.textContent = slider.value;
-    });
-
-    slider.addEventListener('change', () => {
-      loadTurbines(parseInt(slider.value));
-    });
-
-    function loadTurbines(year) {
-      fetch(`${API}/api/turbines?year=${year}`)
-        .then(r => r.json())
-        .then(data => {
-          markers.clearLayers();
-          data.forEach(t => {
-            const popup = Object.entries(t)
-              .map(([k, v]) => `<b>${k}</b>: ${v ?? '—'}`)
-              .join('<br>');
-            L.circleMarker([t.Latitude, t.Longitude], {
-              radius: 5,
-              color: '#1a1a2e',
-              fillColor: '#4a90d9',
-              fillOpacity: 0.8,
-              weight: 1
-            })
-            .bindPopup(popup, { maxWidth: 300 })
-            .addTo(markers);
-          });
-          countEl.textContent = `${data.length} turbines`;
+      .then(data => {
+        data.forEach(t => {
+          const popup = Object.entries(t)
+            .map(([k, v]) => `<b>${k}</b>: ${v ?? '—'}`)
+            .join('<br>');
+          L.circleMarker([t.Latitude, t.Longitude], {
+            radius: 5,
+            color: '#1a1a2e',
+            fillColor: '#4a90d9',
+            fillOpacity: 0.8,
+            weight: 1
+          })
+          .bindPopup(popup, { maxWidth: 300 })
+          .addTo(markers);
         });
-    }
+      });
   </script>
 </body>
 </html>
