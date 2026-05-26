@@ -173,6 +173,7 @@
     <button id="protected-toggle" class="map-toggle off">Protected Areas OFF</button>
     <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
     <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
+    <button id="sites-toggle" class="map-toggle off">Top Sites OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -195,6 +196,7 @@
     let protectedVisible = false;
     let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
     let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
+    let topSitesLayer = null, topSitesVisible = false;
 
     const windToggle           = document.getElementById('wind-toggle');
     const windLegend           = document.getElementById('wind-legend');
@@ -203,6 +205,7 @@
     const protectedToggle      = document.getElementById('protected-toggle');
     const hydroStationsToggle  = document.getElementById('hydro-stations-toggle');
     const hydroLinesToggle     = document.getElementById('hydro-lines-toggle');
+    const sitesToggle           = document.getElementById('sites-toggle');
     const hydroLegend          = document.getElementById('hydro-legend');
 
     const ROAD_STYLES = {
@@ -426,6 +429,53 @@
         hydroLinesToggle.classList.add('off');
       }
       updateHydroLegend();
+    });
+
+    // ── Top candidate sites (ML model output) ────────────────────
+    function siteColor(score) {
+      if (score >= 70) return '#1a9641';
+      if (score >= 50) return '#fdae61';
+      return '#d7191c';
+    }
+
+    fetch(`${API}/api/top-sites`)
+      .then(r => r.json())
+      .then(geojson => {
+        topSitesLayer = L.geoJSON(geojson, {
+          pointToLayer: (f, ll) => L.circleMarker(ll, {
+            radius: 8,
+            color: '#fff',
+            weight: 1.5,
+            fillColor: siteColor(f.properties.final_score),
+            fillOpacity: 0.9,
+          }),
+          onEachFeature: (f, layer) => {
+            const p = f.properties;
+            layer.bindPopup(
+              `<b>Top Candidate Site</b><br>` +
+              `Final score: <b>${p.final_score?.toFixed(1)}</b><br>` +
+              `Rule score: ${p.suitability_score?.toFixed(1)}<br>` +
+              `ML score: ${p.ml_score?.toFixed(2)}<br>` +
+              `Wind: ${p.wind_speed?.toFixed(1)} m/s<br>` +
+              `Road dist: ${p.dist_road_km?.toFixed(1)} km<br>` +
+              `Hydro dist: ${p.dist_hydro_km?.toFixed(1)} km`
+            );
+          },
+        });
+      });
+
+    sitesToggle.addEventListener('click', () => {
+      if (!topSitesLayer) return;
+      topSitesVisible = !topSitesVisible;
+      if (topSitesVisible) {
+        topSitesLayer.addTo(map);
+        sitesToggle.textContent = 'Top Sites ON';
+        sitesToggle.classList.remove('off');
+      } else {
+        map.removeLayer(topSitesLayer);
+        sitesToggle.textContent = 'Top Sites OFF';
+        sitesToggle.classList.add('off');
+      }
     });
 
     // ── Turbines ──────────────────────────────────────────────────

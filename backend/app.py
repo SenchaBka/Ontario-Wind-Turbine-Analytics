@@ -18,12 +18,14 @@ HYDRO_LINES_PATH     = os.path.join(os.path.dirname(__file__), '..', 'analysis',
 HYDRO_LN_ZONES_PATH  = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'hydro_line_zones.geojson')
 ROADS_PATH           = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'roads.geojson')
 PROTECTED_AREAS_PATH = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'protected_areas.geojson')
+TOP_SITES_PATH       = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'results', 'top_candidate_sites.geojson')
 
 # ── Pre-load GeoJSON files ────────────────────────────────────────────────
 with open(HYDRO_STATIONS_PATH)  as f: _hydro_pts_json     = f.read()
 with open(HYDRO_ST_ZONES_PATH)  as f: _station_zones_json = f.read()
 with open(HYDRO_LINES_PATH)     as f: _hydro_lines_json   = f.read()
 with open(HYDRO_LN_ZONES_PATH)  as f: _line_zones_json    = f.read()
+with open(TOP_SITES_PATH)       as f: _top_sites_json      = f.read()
 
 
 @app.route('/api/turbines')
@@ -85,6 +87,12 @@ def get_protected_areas():
     """Return the protected areas GeoJSON with protected_type property."""
     gdf = gpd.read_file(PROTECTED_AREAS_PATH)
     return Response(gdf.to_json(), mimetype='application/json')
+
+
+@app.route('/api/top-sites')
+def get_top_sites():
+    """Return top 100 ML-scored candidate sites."""
+    return Response(_top_sites_json, mimetype='application/json')
 
 
 if __name__ == '__main__':
