@@ -169,6 +169,7 @@
   <div id="controls">
     <button id="wind-toggle" class="map-toggle off">Wind Speed OFF</button>
     <button id="res-toggle" class="map-toggle off">Residential Buffer OFF</button>
+    <button id="roads-toggle" class="map-toggle off">Roads OFF</button>
     <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
     <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
   </div>
@@ -187,15 +188,24 @@
     let windVisible = false;
     let resLayer = null;
     let resVisible = false;
+    let roadsLayer = null;
+    let roadsVisible = false;
     let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
     let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
 
     const windToggle           = document.getElementById('wind-toggle');
     const windLegend           = document.getElementById('wind-legend');
     const resToggle            = document.getElementById('res-toggle');
+    const roadsToggle          = document.getElementById('roads-toggle');
     const hydroStationsToggle  = document.getElementById('hydro-stations-toggle');
     const hydroLinesToggle     = document.getElementById('hydro-lines-toggle');
     const hydroLegend          = document.getElementById('hydro-legend');
+
+    const ROAD_STYLES = {
+      "Freeway":               {color: "#1a1a1a", weight: 1.5, opacity: 0.9},
+      "Expressway / Highway":  {color: "#3a3a3a", weight: 1.2, opacity: 0.85},
+      "Arterial":              {color: "#666666", weight: 0.8, opacity: 0.7}
+    };
 
     function updateHydroLegend() {
       hydroLegend.style.display = (hydroStationsVisible || hydroLinesVisible) ? 'block' : 'none';
