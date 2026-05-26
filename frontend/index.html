@@ -89,6 +89,30 @@
     .map-toggle:hover { background: #2e2e50; }
     .map-toggle.off   { background: #888; }
 
+    /* Hydro legend */
+    #hydro-legend {
+      position: absolute;
+      bottom: 24px;
+      left: 12px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.93);
+      border-radius: 8px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 11px;
+      line-height: 1.6;
+      min-width: 190px;
+    }
+    #hydro-legend h4 {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #222;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #hydro-legend hr { border: none; border-top: 1px solid #ddd; margin: 6px 0; }
+
     /* Wind speed legend */
     #wind-legend {
       position: absolute;
@@ -134,6 +158,25 @@
   </header>
 
   <div id="map">
+    <div id="hydro-legend" style="display:none">
+      <h4>Hydro Stations — distance</h4>
+      <div class="legend-row"><span class="legend-swatch" style="background:#1a9641"></span><span>Excellent &lt; 5 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#ffffbf;border-color:#bbb"></span><span>Good 5–10 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#fdae61"></span><span>Moderate 10–25 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#d7191c"></span><span>Poor 25–50 km</span></div>
+      <div class="legend-row"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#003f88;flex-shrink:0"></span><span>Hydro Station</span></div>
+      <hr>
+      <h4>Hydro Lines — distance</h4>
+      <div class="legend-row"><span class="legend-swatch" style="background:#1a9641"></span><span>Excellent &lt; 1 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#ffffbf;border-color:#bbb"></span><span>Good 1–5 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#fdae61"></span><span>Moderate 5–15 km</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#d7191c"></span><span>Poor 15–30 km</span></div>
+      <hr>
+      <div class="legend-row"><span class="legend-swatch" style="background:#1f78b4"></span><span>Hydro Line</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#a6cee3"></span><span>Unknown Transmission</span></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#33a02c"></span><span>Submerged Hydro Line</span></div>
+    </div>
+
     <div id="wind-legend" style="display:none">
       <h4>Wind Speed · 100 m</h4>
       <div class="legend-row"><span class="legend-swatch" style="background:#f7f7f7"></span><span>&lt; 5 m/s — Not viable</span></div>
@@ -151,6 +194,8 @@
     <span id="count"></span>
     <button id="wind-toggle" class="map-toggle off">Wind Speed OFF</button>
     <button id="res-toggle" class="map-toggle off">Residential Buffer OFF</button>
+    <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
+    <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -167,13 +212,22 @@
     let windVisible = false;
     let resLayer = null;
     let resVisible = false;
+    let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
+    let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
 
-    const slider      = document.getElementById('year-slider');
-    const yearDisplay = document.getElementById('year-display');
-    const countEl     = document.getElementById('count');
-    const windToggle  = document.getElementById('wind-toggle');
-    const windLegend  = document.getElementById('wind-legend');
-    const resToggle   = document.getElementById('res-toggle');
+    const slider               = document.getElementById('year-slider');
+    const yearDisplay          = document.getElementById('year-display');
+    const countEl              = document.getElementById('count');
+    const windToggle           = document.getElementById('wind-toggle');
+    const windLegend           = document.getElementById('wind-legend');
+    const resToggle            = document.getElementById('res-toggle');
+    const hydroStationsToggle  = document.getElementById('hydro-stations-toggle');
+    const hydroLinesToggle     = document.getElementById('hydro-lines-toggle');
+    const hydroLegend          = document.getElementById('hydro-legend');
+
+    function updateHydroLegend() {
+      hydroLegend.style.display = (hydroStationsVisible || hydroLinesVisible) ? 'block' : 'none';
+    }
 
     // ── Wind overlay ──────────────────────────────────────────────
     fetch(`${API}/api/wind-overlay`)
@@ -228,6 +282,94 @@
         resToggle.textContent = 'Residential Buffer OFF';
         resToggle.classList.add('off');
       }
+    });
+
+    // ── Hydro stations ────────────────────────────────────────────
+    const HYDRO_LINE_COLOURS = {
+      'Hydro Line':                '#1f78b4',
+      'Unknown Transmission Line': '#a6cee3',
+      'Submerged Hydro Line':      '#33a02c',
+    };
+
+    Promise.all([
+      fetch(`${API}/api/hydro-stations`).then(r => r.json()),
+      fetch(`${API}/api/hydro-station-zones`).then(r => r.json()),
+      fetch(`${API}/api/hydro-lines`).then(r => r.json()),
+      fetch(`${API}/api/hydro-line-zones`).then(r => r.json()),
+    ]).then(([stationGeo, stationZones, lineGeo, lineZones]) => {
+      hydroStationZones = L.geoJSON(stationZones, {
+        style: f => ({
+          color: f.properties.colour,
+          fillColor: f.properties.colour,
+          fillOpacity: 0.15,
+          weight: 1.5,
+        }),
+        onEachFeature: (f, layer) => layer.bindTooltip(f.properties.label),
+      });
+      hydroStationLayer = L.geoJSON(stationGeo, {
+        pointToLayer: (f, ll) => L.circleMarker(ll, {
+          radius: 6, color: '#003f88', fillColor: '#003f88',
+          fillOpacity: 1.0, weight: 2,
+        }),
+        onEachFeature: (f, layer) => {
+          const name = f.properties.GEOG_UNIT_DESCR || 'Hydro Station';
+          layer.bindTooltip(name).bindPopup(`<b>${name}</b>`);
+        },
+      });
+      hydroLineZones = L.geoJSON(lineZones, {
+        style: f => ({
+          color: f.properties.colour,
+          fillColor: f.properties.colour,
+          fillOpacity: 0.15,
+          weight: 1.5,
+        }),
+        onEachFeature: (f, layer) => layer.bindTooltip(f.properties.label),
+      });
+      hydroLineLayer = L.geoJSON(lineGeo, {
+        style: f => ({
+          color: HYDRO_LINE_COLOURS[f.properties.CLASS_SUBTYPE] || '#888',
+          weight: 1.5,
+          opacity: 0.85,
+        }),
+        onEachFeature: (f, layer) => {
+          const desc = f.properties.GEOG_UNIT_DESCR || f.properties.CLASS_SUBTYPE;
+          layer.bindTooltip(desc);
+        },
+      });
+    });
+
+    hydroStationsToggle.addEventListener('click', () => {
+      if (!hydroStationLayer) return;
+      hydroStationsVisible = !hydroStationsVisible;
+      if (hydroStationsVisible) {
+        hydroStationZones.addTo(map);
+        hydroStationLayer.addTo(map);
+        hydroStationsToggle.textContent = 'Hydro Stations ON';
+        hydroStationsToggle.classList.remove('off');
+      } else {
+        map.removeLayer(hydroStationZones);
+        map.removeLayer(hydroStationLayer);
+        hydroStationsToggle.textContent = 'Hydro Stations OFF';
+        hydroStationsToggle.classList.add('off');
+      }
+      updateHydroLegend();
+    });
+
+    hydroLinesToggle.addEventListener('click', () => {
+      if (!hydroLineLayer) return;
+      hydroLinesVisible = !hydroLinesVisible;
+      if (hydroLinesVisible) {
+        hydroLineZones.addTo(map);
+        hydroLineLayer.addTo(map);
+        hydroLinesToggle.textContent = 'Hydro Lines ON';
+        hydroLinesToggle.classList.remove('off');
+      } else {
+        map.removeLayer(hydroLineZones);
+        map.removeLayer(hydroLineLayer);
+        hydroLinesToggle.textContent = 'Hydro Lines OFF';
+        hydroLinesToggle.classList.add('off');
+      }
+      updateHydroLegend();
     });
 
     // ── Turbines ──────────────────────────────────────────────────
