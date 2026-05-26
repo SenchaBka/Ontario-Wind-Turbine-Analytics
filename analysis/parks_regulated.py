@@ -1,7 +1,7 @@
 import os
 import geopandas as gpd
 
-OUT_GEOJSON = "analysis/results/protected_areas.geojson"
+OUT_GEOJSON = "analysis/api/protected_areas.geojson"
 
 print("=" * 70)
 print("PROTECTED AREAS ANALYSIS")

@@ -7,10 +7,10 @@ import geopandas as gpd
 # ---------------------------------------------------------------------------
 UTILITY_PATH         = "analysis/data/Utility_Site.geojson"
 LINE_PATH            = "analysis/data/Utility_Line.geojson"
-OUT_STATIONS_JSON    = "analysis/results/hydro_stations.geojson"
-OUT_STATION_ZONES    = "analysis/results/hydro_station_zones.geojson"
-OUT_LINES_JSON       = "analysis/results/hydro_lines.geojson"
-OUT_LINE_ZONES       = "analysis/results/hydro_line_zones.geojson"
+OUT_STATIONS_JSON    = "analysis/api/hydro_stations.geojson"
+OUT_STATION_ZONES    = "analysis/api/hydro_station_zones.geojson"
+OUT_LINES_JSON       = "analysis/api/hydro_lines.geojson"
+OUT_LINE_ZONES       = "analysis/api/hydro_line_zones.geojson"
 
 # ---------------------------------------------------------------------------
 # Suitability rings for hydro stations (radius_km, la

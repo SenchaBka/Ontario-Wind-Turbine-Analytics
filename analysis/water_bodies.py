@@ -4,7 +4,7 @@ import geopandas as gpd
 BASE = os.path.dirname(__file__)
 INPUT  = os.path.join(BASE, "data", "Ontario_Hydro_Network_(OHN)_-_Waterbody",
                        "Ontario_Hydro_Network_(OHN)_-_Waterbody.shp")
-OUTPUT = os.path.join(BASE, "results", "lakes.geojson")
+OUTPUT = os.path.join(BASE, "api", "lakes.geojson")
 
 # Lakes smaller than this are skipped entirely during reading (10 km²)
 MIN_AREA_M2 = 10_000_000

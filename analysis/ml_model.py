@@ -23,25 +23,26 @@ ONTARIO_BOUNDARY = "analysis/data/ontario_boundary.gpkg"
 WIND_RASTER = "analysis/data/CAN_wind-speed_100m.tif"
 
 # Constraint layers
-PROTECTED_AREAS = "analysis/results/protected_areas.geojson"
-RESIDENTIAL_BUFFER = "analysis/data/residential_buffer.gpkg"
-HYDRO_STATIONS = "analysis/results/hydro_stations.geojson"
-HYDRO_STATION_ZONES = "analysis/results/hydro_station_zones.geojson"
-HYDRO_LINES = "analysis/results/hydro_lines.geojson"
-HYDRO_LINE_ZONES = "analysis/results/hydro_line_zones.geojson"
-ROADS = "analysis/results/roads.geojson"
-LAKES = "analysis/results/lakes.geojson"
+
+PROTECTED_AREAS = "analysis/api/protected_areas.geojson"
+RESIDENTIAL_BUFFER = "analysis/api/residential_buffer.gpkg"
+HYDRO_STATIONS = "analysis/api/hydro_stations.geojson"
+HYDRO_STATION_ZONES = "analysis/api/hydro_station_zones.geojson"
+HYDRO_LINES = "analysis/api/hydro_lines.geojson"
+HYDRO_LINE_ZONES = "analysis/api/hydro_line_zones.geojson"
+ROADS = "analysis/api/roads.geojson"
+LAKES = "analysis/api/lakes.geojson"
 
 # Turbine buffer (300m exclusion zone)
-TURBINE_BUFFER = "analysis/results/turbine_buffer.geojson"
+TURBINE_BUFFER = "analysis/api/turbine_buffer.geojson"
 
 # Existing turbines for training
 TURBINES_EXCEL = "analysis/data/Wind_Turbine_Database_en.xlsx"
 
 # Output paths
-OUT_SUITABILITY_GPKG = "analysis/results/suitability_grid.gpkg"
-OUT_ML_MODEL = "analysis/results/turbine_model.json"
-OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
+OUT_SUITABILITY_GPKG = "analysis/api/suitability_grid.gpkg"
+OUT_ML_MODEL = "analysis/api/turbine_model.json"
+OUT_TOP_SITES = "analysis/api/top_candidate_sites.geojson"
 
 # Grid resolution for candidate points
 GRID_SPACING = 0.02  # ~2km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE

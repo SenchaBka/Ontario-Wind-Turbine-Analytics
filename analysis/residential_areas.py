@@ -1,7 +1,7 @@
 import geopandas as gpd
 
 # Load built-up areas
-gdf = gpd.read_file("data/Built_Up_Area.geojson")
+gdf = gpd.read_file("analysis/data/Built_Up_Area.geojson")
 print(f"Loaded {len(gdf)} built-up area polygons")
 
 # --- Buffer 550 m then dissolve into one unified polygon ---
@@ -19,6 +19,6 @@ unified = unified.to_crs(epsg=4326)
 print("Buffer + dissolve + simplify done")
 
 # Export simplified polygon for reuse
-unified.to_file("data/residential_buffer.gpkg", driver="GPKG")
-print("Saved to data/residential_buffer.gpkg")
+unified.to_file("analysis/api/residential_buffer.gpkg", driver="GPKG")
+print("Saved to analysis/api/residential_buffer.gpkg")
 # Styling is applied in frontend/index.html

@@ -3,7 +3,7 @@ import geopandas as gpd
 
 GDB_PATH       = "analysis/data/ORNELEM_tmp/Non_Sensitive.gdb"
 BUILT_UP_PATH  = "analysis/data/Built_Up_Area.geojson"
-OUT_GEOJSON    = "analysis/results/roads.geojson"
+OUT_GEOJSON    = "analysis/api/roads.geojson"
 OUT_HTML       = "analysis/results/roads_map.html"
 
 ROAD_CLASSES = ["Freeway", "Expressway / Highway", "Arterial"]
