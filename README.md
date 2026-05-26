@@ -17,10 +17,10 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 ### Built-Up / Residential Areas
 | Dataset | Description | Source |
 |---|---|---|
-| Ontario Built-Up Area | Province-wide layer of man-made/residential land cover — covers southern Ontario | [Ontario GeoHub](https://geohub.lio.gov.on.ca/datasets/built-up-area/explore?location=43.997557%2C-79.332619%2C10) |
+| Ontario Built-Up Area | Province-wide layer of man-made/residential land cover | [Ontario GeoHub](https://geohub.lio.gov.on.ca/datasets/built-up-area/explore?location=43.997557%2C-79.332619%2C10) |
 | Canada Building Footprints | Building footprints including northern Ontario where Built-Up Area layer has gaps | [open.canada.ca](https://ouvert.canada.ca/data/dataset/79fdad93-9025-49ad-ba16-c26d718cc070/resource/38049b30-86ce-4097-ab28-8ac0b5acd4fe) |
 
-> ⚠️ **AFI:** Find equivalent built-up area dataset for **northern Ontario** to fill coverage gaps in the provincial layer.
+> ⚠️ **AFI:** Find equivalent built-up area dataset specifically for **northern Ontario** to fill coverage gaps.
 
 ---
 
@@ -50,16 +50,14 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 
 ---
 
-### 🔲 AFIs — Datasets Still Needed
+## 🔲 AFIs — Datasets Still Needed
 
-| Layer | Purpose | Suggested Source |
-|---|---|---|
-| **Built-Up Area — Northern Ontario** | Fill coverage gap in northern Ontario residential areas | Statistics Canada / Ontario PLC 2000 |
-| **Local Energy Demand** | Identify high-demand zones to prioritize turbine placement near load centres | IESO Zonal Demand Data + Statistics Canada Census (population density) |
-| **Terrain / Slope** | Exclude slopes > 20° and score terrain suitability | Ontario PDEM — [Ontario GeoHub](https://geohub.lio.gov.on.ca/maps/mnrf::provincial-digital-elevation-model-pdem) |
-| **Humidity** | Assess atmospheric conditions affecting turbine performance and icing risk | Environment Canada Climate Normals |
-| **Land Use Type** | Identify agricultural/rural vs. urban/protected land for siting suitability | SOLRIS (south) + Provincial Land Cover 2000 (north) |
-| **Airports & Aerodromes** | Exclusion/avoidance zones — turbines interfere with navigational aids | Ontario GeoHub — search `Airport Aerodrome` |
+| Layer | Purpose |
+|---|---|
+| **Built-Up Area — Northern Ontario** | Fill coverage gap in northern Ontario residential areas |
+| **Local Energy Demand** | IESO Zonal Demand Data or Population Density — identify high-demand zones |
+| **Humidity** | Assess atmospheric conditions affecting turbine performance and icing risk |
+| **Land Use Type** | Identify agricultural/rural vs. urban/protected land for siting suitability |
 
 ---
 
@@ -72,53 +70,63 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 | Distance to Hydro Station | High | Grid connection cost proxy |
 | Distance to Hydro Line | Medium | Secondary grid proximity |
 | Road Accessibility | Medium | Construction and maintenance access |
-| Slope | Medium | Foundation and construction cost |
 | Energy Demand (AFI) | Low–Medium | Secondary siting factor in Ontario's grid |
-
-### Hard Exclusion Layers (No-Build Zones)
-| Layer | Buffer |
-|---|---|
-| Provincial Parks | Full polygon |
-| Conservation Reserves | Full polygon |
-| Greenbelt (all designations) | Full polygon |
-| Water Bodies | Full polygon |
-| Roads | ~100m (blade length + 10m) |
-| Railways | ~100m (blade length + 10m) |
-| Residential Buildings | 550m (Ontario noise setback regulation) |
-| Existing Wind Turbines | 400m (spacing / wake exclusion) |
-| Airports & Aerodromes (AFI) | Avoidance zone |
 
 ---
 
-## 💡 Key Formulas
+## 🤖 How the ML Suitability Model Works
 
-### Annual Energy Output
-```
-AEP (MWh) = Capacity (MW) × 8,760 hrs × Capacity Factor
-```
+The wind turbine suitability model combines spatial exclusion logic with a machine learning (ML) classifier to identify optimal sites:
 
-### Physics-Based Power Output
-```
-P (kW) = 0.5 × 1.225 × π × (rotor_radius)² × wind_speed³ × Cp
-```
-Where Cp ≈ 0.35–0.45 (turbine efficiency)
+1. **Spatial Exclusion (Pre-filtering):**
+   - Removes all candidate points that fall within exclusion zones (lakes, protected areas, residential buffers, turbine buffers, etc.) using fast spatial joins.
+   - Only land areas outside these zones are considered for further analysis.
 
-### Approximate Total Cost (CAD)
-```
-Turbine Cost    = MW × $1,800,000
-Foundation      = $250,000 × slope_multiplier
-Road Access     = road_distance_km × $62,000
-Grid Connection = grid_distance_km × $200,000
-Transport       = ~$65,000
-Subtotal        = sum of above
-Soft Costs      = Subtotal × 0.15
-─────────────────────────────────────
-Total Cost      = Subtotal + Soft Costs
-```
+2. **Feature Extraction:**
+   - For each candidate site, calculates features such as wind speed, distance to nearest hydro station, distance to nearest hydro line, and road accessibility.
+   - Uses vectorized spatial operations and STRtree for efficient nearest-neighbor calculations.
+
+3. **Rule-Based Scoring:**
+   - Assigns a suitability score to each site based on weighted factors (e.g., wind speed, grid proximity, road access).
+   - Hard thresholds (e.g., minimum wind speed) are applied to further filter out poor sites.
+
+4. **ML Classification:**
+   - Trains a Random Forest classifier using known turbine locations (positive examples) and random non-turbine sites (negatives).
+   - Predicts the likelihood of suitability for each candidate site based on extracted features.
+
+5. **Penalty Logic:**
+   - Applies penalties to sites that are too close to existing turbines (within 1.5 km), reducing their final score to avoid wake interference.
+
+6. **Output:**
+   - Ranks all remaining candidate sites by final score (combining rule-based and ML predictions).
+   - Outputs the top N sites as GeoJSON for frontend visualization, including all relevant properties and cost estimates.
+
+This hybrid approach ensures that only technically, environmentally, and economically viable sites are selected for wind turbine development.
 
 ---
 
 ## 📌 Notes
 - Ontario has a **moratorium on offshore wind** (all freshwater lakes) in place since 2011 — analysis is land-based only.
 - Ontario's grid is managed by **IESO** — turbine output feeds the provincial grid, not local areas directly. Grid proximity is therefore more important than demand proximity.
-- Wind turbine spacing: **400m minimum** (hard exclusion), **1,500m** soft wake interference zone.
+- Wind turbine spacing: **300m minimum** (hard exclusion), **1,500m** soft wake interference zone.
+
+---
+
+## How to Run the Project
+
+1. **Start the Backend API**
+   - Open a terminal in the `backend` directory:
+     ```sh
+     cd backend
+     python app.py
+     ```
+
+2. **Open the Frontend**
+   - Open `frontend/index.html` in your web browser.
+
+3. **Install Required Libraries for Analysis**
+   - In the project root directory, install all Python dependencies:
+     ```sh
+     pip install -r requirements.txt
+     ```
+   - This will ensure all necessary libraries are available to run the analysis scripts.
