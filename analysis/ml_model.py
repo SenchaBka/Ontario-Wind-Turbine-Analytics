@@ -153,7 +153,7 @@ def get_min_distance_km(point, gdf_proj):
 
 # Extract features
 features = []
-for idx, row in candidates_gdf.iterrows():
+for count, (idx, row) in enumerate(candidates_gdf.iterrows(), 1):
     point = row.geometry
     
     wind = get_wind_speed(point, wind_data, wind_transform)
@@ -172,8 +172,8 @@ for idx, row in candidates_gdf.iterrows():
         'lat': point.y
     })
     
-    if (idx + 1) % 1000 == 0:
-        print(f"  Processed {idx + 1}/{len(candidates_gdf)} points...")
+    if count % 1000 == 0:
+        print(f"  Processed {count}/{len(candidates_gdf)} points...")
 
 candidates_gdf = candidates_gdf.join(pd.DataFrame(features))
 
