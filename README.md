@@ -11,10 +11,17 @@ https://geohub.lio.gov.on.ca/datasets/mnrf::utility-line/explore?location=49.634
 work on next:
 energy demand
 Terrain?
-distance to roads, substations, power lines
+distance to roads and railways
+Provincial Parks & Conservation Reserves
+Provincially Significant Wetlands 
+Slope / Terrain?
+IESO Zonal Demand Data
+Population Density?
+
 humidity?
 Land use type
 solar?
+Airports & Aerodromes?
 work on frontend
 
 AFIs:
