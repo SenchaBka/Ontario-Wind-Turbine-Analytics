@@ -143,7 +143,7 @@
       <div class="legend-row"><span class="legend-swatch" style="background:#ffffbf;border-color:#bbb"></span><span>Good 5–10 km</span></div>
       <div class="legend-row"><span class="legend-swatch" style="background:#fdae61"></span><span>Moderate 10–25 km</span></div>
       <div class="legend-row"><span class="legend-swatch" style="background:#d7191c"></span><span>Poor 25–50 km</span></div>
-      <div class="legend-row"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#003f88;flex-shrink:0"></span><span>Hydro Station</span></div>
+      <div class="legend-row"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#F77B2C;flex-shrink:0"></span><span>Hydro Station</span></div>
       <hr>
       <h4>Hydro Lines — distance</h4>
       <div class="legend-row"><span class="legend-swatch" style="background:#1a9641"></span><span>Excellent &lt; 1 km</span></div>
@@ -323,6 +323,20 @@
     });
 
     // ── Hydro stations ────────────────────────────────────────────
+    const HYDRO_STATION_ZONE_STYLES = {
+      "Excellent (< 5 km)":     {color: "#6ECE58", fillColor: "#6ECE58", fillOpacity: 0.15, weight: 1.5},
+      "Good (5–10 km)":         {color: "#F77B2C", fillColor: "#F77B2C", fillOpacity: 0.15, weight: 1.5},
+      "Moderate (10–25 km)":    {color: "#B92E2C", fillColor: "#B92E2C", fillOpacity: 0.15, weight: 1.5},
+      "Poor (25–50 km)":        {color: "#4A1820", fillColor: "#4A1820", fillOpacity: 0.15, weight: 1.5},
+    };
+
+    const HYDRO_LINE_ZONE_STYLES = {
+      "Line: Excellent (< 1 km)":   {color: "#6ECE58", fillColor: "#6ECE58", fillOpacity: 0.15, weight: 1.5},
+      "Line: Good (1–5 km)":        {color: "#F77B2C", fillColor: "#F77B2C", fillOpacity: 0.15, weight: 1.5},
+      "Line: Moderate (5–15 km)":   {color: "#B92E2C", fillColor: "#B92E2C", fillOpacity: 0.15, weight: 1.5},
+      "Line: Poor (15–30 km)":      {color: "#4A1820", fillColor: "#4A1820", fillOpacity: 0.15, weight: 1.5},
+    };
+
     const HYDRO_LINE_COLOURS = {
       'Hydro Line':                '#1f78b4',
       'Unknown Transmission Line': '#a6cee3',
@@ -336,17 +350,19 @@
       fetch(`${API}/api/hydro-line-zones`).then(r => r.json()),
     ]).then(([stationGeo, stationZones, lineGeo, lineZones]) => {
       hydroStationZones = L.geoJSON(stationZones, {
-        style: f => ({
-          color: f.properties.colour,
-          fillColor: f.properties.colour,
-          fillOpacity: 0.15,
-          weight: 1.5,
-        }),
+        style: f => {
+          const lbl = f.properties.label || '';
+          if (lbl.includes('Excellent')) return HYDRO_STATION_ZONE_STYLES["Excellent (< 5 km)"];
+          if (lbl.includes('Good'))      return HYDRO_STATION_ZONE_STYLES["Good (5\u201310 km)"];
+          if (lbl.includes('Moderate'))  return HYDRO_STATION_ZONE_STYLES["Moderate (10\u201325 km)"];
+          if (lbl.includes('Poor'))      return HYDRO_STATION_ZONE_STYLES["Poor (25\u201350 km)"];
+          return {color: '#888', fillColor: '#888', fillOpacity: 0.1, weight: 1};
+        },
         onEachFeature: (f, layer) => layer.bindTooltip(f.properties.label),
       });
       hydroStationLayer = L.geoJSON(stationGeo, {
         pointToLayer: (f, ll) => L.circleMarker(ll, {
-          radius: 6, color: '#003f88', fillColor: '#003f88',
+          radius: 6, color: '#E04E27', fillColor: '#F77B2C',
           fillOpacity: 1.0, weight: 2,
         }),
         onEachFeature: (f, layer) => {
@@ -355,12 +371,14 @@
         },
       });
       hydroLineZones = L.geoJSON(lineZones, {
-        style: f => ({
-          color: f.properties.colour,
-          fillColor: f.properties.colour,
-          fillOpacity: 0.15,
-          weight: 1.5,
-        }),
+        style: f => {
+          const lbl = f.properties.label || '';
+          if (lbl.includes('Excellent')) return HYDRO_LINE_ZONE_STYLES["Line: Excellent (< 1 km)"];
+          if (lbl.includes('Good'))      return HYDRO_LINE_ZONE_STYLES["Line: Good (1\u20135 km)"];
+          if (lbl.includes('Moderate'))  return HYDRO_LINE_ZONE_STYLES["Line: Moderate (5\u201315 km)"];
+          if (lbl.includes('Poor'))      return HYDRO_LINE_ZONE_STYLES["Line: Poor (15\u201330 km)"];
+          return {color: '#888', fillColor: '#888', fillOpacity: 0.1, weight: 1};
+        },
         onEachFeature: (f, layer) => layer.bindTooltip(f.properties.label),
       });
       hydroLineLayer = L.geoJSON(lineGeo, {
@@ -411,22 +429,29 @@
     });
 
     // ── Turbines ──────────────────────────────────────────────────
+    const TURBINE_STYLE = {
+      radius: 5,
+      color: '#163765',
+      fillColor: '#0E2247',
+      fillOpacity: 1.0,
+      weight: 1
+    };
+
     fetch(`${API}/api/turbines`)
       .then(r => r.json())
-      .then(data => {
-        data.forEach(t => {
-          const popup = Object.entries(t)
+      .then(geojson => {
+        geojson.features.forEach(feature => {
+          const props = feature.properties;
+          const coords = feature.geometry.coordinates; // [lon, lat] in GeoJSON
+          
+          const popup = Object.entries(props)
+            .filter(([k, v]) => k !== 'geometry')
             .map(([k, v]) => `<b>${k}</b>: ${v ?? '—'}`)
             .join('<br>');
-          L.circleMarker([t.Latitude, t.Longitude], {
-            radius: 5,
-            color: '#1F6F8F',
-            fillColor: '#5BB4A8',
-            fillOpacity: 1.0,
-            weight: 1
-          })
-          .bindPopup(popup, { maxWidth: 300 })
-          .addTo(markers);
+          
+          L.circleMarker([coords[1], coords[0]], TURBINE_STYLE)
+            .bindPopup(popup, { maxWidth: 300 })
+            .addTo(markers);
         });
       });
   </script>
