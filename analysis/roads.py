@@ -1,92 +1,84 @@
 import os
-import json
 import geopandas as gpd
 import folium
-from shapely.ops import unary_union
 
-GDB_PATH       = "analysis/data/ORNELEM_tmp/Non_Sensitive.gdb"
-OUT_HTML       = "analysis/results/roads_map.html"
-OUT_ZONES_JSON = "analysis/results/road_zones.geojson"
+GDB_PATH      = "analysis/data/ORNELEM_tmp/Non_Sensitive.gdb"
+BUILT_UP_PATH = "analysis/data/Built_Up_Area.geojson"
+OUT_HTML      = "analysis/results/roads_map.html"
 
-# ---------------------------------------------------------------------------
-# Suitability rings — drawn largest first so smaller sit on top
-# (radius_m, label, colour)
-# ---------------------------------------------------------------------------
-RINGS = [
-    (5000, "Poor (2–5 km)",         "#d7191c"),
-    (2000, "Moderate (500 m–2 km)", "#fdae61"),
-    (500,  "Excellent (60–100 m)",  "#ffffbf"),
-    (60,   "No Build (< 60 m)",     "#333333"),
-]
+ROAD_CLASSES = ["Freeway", "Expressway / Highway", "Arterial"]
+
+CLASS_STYLES = {
+    "Freeway":               {"color": "#1a1a1a", "weight": 1.5, "opacity": 0.9},
+    "Expressway / Highway":  {"color": "#3a3a3a", "weight": 1.2, "opacity": 0.85},
+    "Arterial":              {"color": "#666666", "weight": 0.8, "opacity": 0.7},
+}
 
 # ---------------------------------------------------------------------------
-# 1. Load & summarise
+# 1. Load classification table and keep only highway / arterial rows
 # ---------------------------------------------------------------------------
-print("Loading road network (geometry only)…")
-roads = gpd.read_file(GDB_PATH, layer="ORN_ROAD_NET_ELEMENT", include_fields=[])
-
-print(f"Total segments : {len(roads):,}")
-
-# ---------------------------------------------------------------------------
-# 2. Project + thin + simplify
-# ---------------------------------------------------------------------------
-print("Projecting to EPSG:3347…")
-roads_proj = roads[["geometry"]].to_crs(epsg=3347)
-
-# Sample every 20th segment — plenty of coverage at 5 km buffer scale
-roads_proj = roads_proj.iloc[::20].copy()
-print(f"Sampled to     : {len(roads_proj):,} segments")
-
-roads_proj["geometry"] = roads_proj.geometry.simplify(500, preserve_topology=False)
-roads_proj = roads_proj[~roads_proj.geometry.is_empty]
+print("Loading road class table…")
+road_class = gpd.read_file(
+    GDB_PATH,
+    layer="ORN_ROAD_CLASS",
+    columns=["ORN_ROAD_NET_ELEMENT_ID", "ROAD_CLASS"],
+)
+road_class = road_class[road_class["ROAD_CLASS"].isin(ROAD_CLASSES)].copy()
+print(f"Matching segments in class table: {len(road_class):,}")
 
 # ---------------------------------------------------------------------------
-# 3. Buffer-first approach: buffer each segment individually, then union.
-#    This is far faster than union-first because each segment buffer is a
-#    simple pill shape; unioning 29 K small polygons beats buffering one
-#    massive MultiLineString with millions of vertices.
+# 2. Load geometry and join road class
+# ---------------------------------------------------------------------------
+print("Loading road geometries…")
+roads = gpd.read_file(GDB_PATH, layer="ORN_ROAD_NET_ELEMENT", columns=["OGF_ID"])
+
+roads["OGF_ID"] = roads["OGF_ID"].astype(float)
+road_class["ORN_ROAD_NET_ELEMENT_ID"] = road_class["ORN_ROAD_NET_ELEMENT_ID"].astype(float)
+
+merged = roads.merge(
+    road_class[["ORN_ROAD_NET_ELEMENT_ID", "ROAD_CLASS"]],
+    left_on="OGF_ID",
+    right_on="ORN_ROAD_NET_ELEMENT_ID",
+    how="inner",
+).to_crs(epsg=4326)
+print(f"Roads after join: {len(merged):,}")
+
+# ---------------------------------------------------------------------------
+# 3. Remove arterial roads inside built-up (urban) areas
+# ---------------------------------------------------------------------------
+print("Loading built-up areas to filter urban arterials…")
+built_up = gpd.read_file(BUILT_UP_PATH)[["geometry"]].to_crs(epsg=4326)
+built_up_union = built_up.geometry.union_all()
+
+arterial_mask = merged["ROAD_CLASS"] == "Arterial"
+arterials = merged[arterial_mask].copy()
+others    = merged[~arterial_mask].copy()
+
+# Keep only arterials whose centroid falls outside built-up areas
+arterials_outside = arterials[~arterials.geometry.centroid.within(built_up_union)]
+print(f"  Arterials kept (rural only): {len(arterials_outside):,} / {len(arterials):,}")
+
+merged = gpd.GeoDataFrame(
+    gpd.pd.concat([others, arterials_outside], ignore_index=True),
+    crs="EPSG:4326",
+)
+
+# ---------------------------------------------------------------------------
+# 4. Build map
 # ---------------------------------------------------------------------------
 os.makedirs(os.path.dirname(OUT_HTML), exist_ok=True)
-
-zone_parts = []
-for radius_m, label, colour in RINGS:
-    print(f"  Buffering {label} ({radius_m} m)…")
-    buffered   = roads_proj.geometry.buffer(radius_m, resolution=2)
-    zone_geom  = unary_union(buffered)
-    zone_gdf   = gpd.GeoDataFrame(
-        {"label": [label], "colour": [colour]},
-        geometry=[zone_geom],
-        crs="EPSG:3347",
-    ).to_crs(epsg=4326)
-    zone_parts.append(zone_gdf)
-
-import pandas as pd
-zones = gpd.GeoDataFrame(pd.concat(zone_parts, ignore_index=True), crs="EPSG:4326")
-
-# Simplify output polygons to reduce file size
-zones["geometry"] = zones.geometry.simplify(0.005, preserve_topology=True)
-zones.to_file(OUT_ZONES_JSON, driver="GeoJSON")
-print(f"\nZones saved → {OUT_ZONES_JSON}")
-
-# ---------------------------------------------------------------------------
-# 4. Build map — zones only, no raw road lines
-# ---------------------------------------------------------------------------
 m = folium.Map(location=[51.25, -85.32], zoom_start=6, tiles="CartoDB positron")
 
-with open(OUT_ZONES_JSON) as f:
-    zones_geojson = json.load(f)
-
-for (_, label, colour), feature in zip(RINGS, zones_geojson["features"]):
-    layer = folium.FeatureGroup(name=label, show=True).add_to(m)
+for road_class_name, style in CLASS_STYLES.items():
+    subset = merged[merged["ROAD_CLASS"] == road_class_name]
+    if subset.empty:
+        continue
+    layer = folium.FeatureGroup(name=road_class_name, show=True).add_to(m)
     folium.GeoJson(
-        data=feature,
-        style_function=lambda _, c=colour: {
-            "color":       c,
-            "weight":      1,
-            "fillColor":   c,
-            "fillOpacity": 0.2,
-        },
+        data=subset[["geometry"]].__geo_interface__,
+        style_function=lambda _, s=style: s,
     ).add_to(layer)
+    print(f"  Added {len(subset):,} {road_class_name} segments")
 
 legend_html = """
 <div style="
@@ -94,19 +86,14 @@ legend_html = """
     background:rgba(255,255,255,0.92); padding:10px 16px;
     border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.25);
     font-family:sans-serif; font-size:13px;">
-  <b>Distance to Nearest Road</b><br>
-  <span style="color:#333333">&#9679;</span> No Build (&lt; 60 m)<br>
-  <span style="color:#ffffbf; -webkit-text-stroke:1px #aaa">&#9679;</span> Excellent (60–100 m)<br>
-  <span style="color:#1a9641">&#9679;</span> Good (100–500 m)<br>
-  <span style="color:#fdae61">&#9679;</span> Moderate (500 m–2 km)<br>
-  <span style="color:#d7191c">&#9679;</span> Poor (2–5 km)<br>
+  <b>Road Class</b><br>
+  <span style="color:#1a1a1a">&#9473;</span> Freeway<br>
+  <span style="color:#3a3a3a">&#9473;</span> Expressway / Highway<br>
+  <span style="color:#666666">&#9473;</span> Arterial (rural only)<br>
 </div>
 """
 m.get_root().html.add_child(folium.Element(legend_html))
 folium.LayerControl(collapsed=False).add_to(m)
-
-m.save(OUT_HTML)
-print(f"Map saved → {OUT_HTML}")
 
 m.save(OUT_HTML)
 print(f"\nMap saved → {OUT_HTML}")
