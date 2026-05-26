@@ -8,6 +8,7 @@ import folium
 # Paths
 # ---------------------------------------------------------------------------
 UTILITY_PATH = "analysis/data/Utility_Site.geojson"
+LINE_PATH    = "analysis/data/Utility_Line.geojson"
 OUT_HTML     = "analysis/results/hydro_distance_suitability_map.html"
 
 # ---------------------------------------------------------------------------
@@ -36,6 +37,29 @@ hydro_proj = hydro.to_crs(epsg=3347)   # Canada Albers — metres, for accurate 
 print(f"Hydro stations selected: {len(hydro_wgs)}")
 
 # ---------------------------------------------------------------------------
+# 1b. Load utility lines & summarise
+# ---------------------------------------------------------------------------
+lines = gpd.read_file(LINE_PATH)
+
+print("\n=== Utility lines by CLASS_SUBTYPE ===")
+print(lines["CLASS_SUBTYPE"].value_counts().to_string())
+print(f"\nTotal utility lines: {len(lines)}\n")
+
+# Colour map for line subtypes
+LINE_COLOURS = {
+    "Hydro Line":                      "#1f78b4",
+    "Unknown Transmission Line":        "#a6cee3",
+    "Unknown Pipeline":                 "#b2df8a",
+    "Submerged Hydro Line":             "#33a02c",
+    "Natural Gas Pipeline":             "#ff7f00",
+    "Submerged Communication Line":     "#cab2d6",
+    "Communication Line":               "#6a3d9a",
+    "Water Pipeline":                   "#1dd3e6",
+    "Submerged Natural Gas Pipeline":   "#fdbf6f",
+    "Submerged Water Pipeline":         "#e31a1c",
+}
+
+# ---------------------------------------------------------------------------
 # 2. Build map
 # ---------------------------------------------------------------------------
 m = folium.Map(location=[51.25, -85.32], zoom_start=6, tiles="CartoDB positron")
@@ -56,6 +80,24 @@ for radius_km, label, colour in RINGS:
             "fillOpacity": 0.15,
         },
     ).add_to(layer)
+
+# Utility lines — one toggleable layer per subtype
+for subtype, colour in LINE_COLOURS.items():
+    subset = lines[lines["CLASS_SUBTYPE"] == subtype][["geometry", "CLASS_SUBTYPE", "GEOG_UNIT_DESCR"]]
+    if subset.empty:
+        continue
+    geojson_data = json.loads(subset.to_json())
+    line_layer = folium.FeatureGroup(name=f"Line: {subtype} ({len(subset)})", show=False).add_to(m)
+    folium.GeoJson(
+        data=geojson_data,
+        style_function=lambda _, c=colour: {
+            "color":   c,
+            "weight":  1.5,
+            "opacity": 0.8,
+        },
+        tooltip=folium.GeoJsonTooltip(fields=["CLASS_SUBTYPE", "GEOG_UNIT_DESCR"],
+                                      aliases=["Type", "Description"]),
+    ).add_to(line_layer)
 
 # Hydro station markers on top
 hydro_layer = folium.FeatureGroup(name="Hydro Stations", show=True).add_to(m)
