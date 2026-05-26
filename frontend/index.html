@@ -174,6 +174,7 @@
     <button id="hydro-stations-toggle" class="map-toggle off">Hydro Stations OFF</button>
     <button id="hydro-lines-toggle" class="map-toggle off">Hydro Lines OFF</button>
     <button id="sites-toggle" class="map-toggle off">Top Sites OFF</button>
+    <button id="lakes-toggle" class="map-toggle off">Lakes OFF</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -197,6 +198,7 @@
     let hydroStationLayer = null, hydroStationZones = null, hydroStationsVisible = false;
     let hydroLineLayer = null,    hydroLineZones = null,    hydroLinesVisible = false;
     let topSitesLayer = null, topSitesVisible = false;
+    let lakesLayer = null, lakesVisible = false;
 
     const windToggle           = document.getElementById('wind-toggle');
     const windLegend           = document.getElementById('wind-legend');
@@ -206,6 +208,7 @@
     const hydroStationsToggle  = document.getElementById('hydro-stations-toggle');
     const hydroLinesToggle     = document.getElementById('hydro-lines-toggle');
     const sitesToggle           = document.getElementById('sites-toggle');
+    const lakesToggle            = document.getElementById('lakes-toggle');
     const hydroLegend          = document.getElementById('hydro-legend');
 
     const ROAD_STYLES = {
@@ -475,6 +478,38 @@
         map.removeLayer(topSitesLayer);
         sitesToggle.textContent = 'Top Sites OFF';
         sitesToggle.classList.add('off');
+      }
+    });
+
+    // ── Lakes ────────────────────────────────────────────────────
+    fetch(`${API}/api/lakes`)
+      .then(r => r.json())
+      .then(geojson => {
+        lakesLayer = L.geoJSON(geojson, {
+          style: {
+            color: '#2171b5',
+            fillColor: '#6baed6',
+            fillOpacity: 0.45,
+            weight: 0.6,
+          },
+          onEachFeature: (f, layer) => {
+            const name = f.properties.name || 'Unnamed Lake';
+            layer.bindTooltip(name);
+          },
+        });
+      });
+
+    lakesToggle.addEventListener('click', () => {
+      if (!lakesLayer) return;
+      lakesVisible = !lakesVisible;
+      if (lakesVisible) {
+        lakesLayer.addTo(map);
+        lakesToggle.textContent = 'Lakes ON';
+        lakesToggle.classList.remove('off');
+      } else {
+        map.removeLayer(lakesLayer);
+        lakesToggle.textContent = 'Lakes OFF';
+        lakesToggle.classList.add('off');
       }
     });
 
