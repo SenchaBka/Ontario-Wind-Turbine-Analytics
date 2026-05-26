@@ -22,38 +22,38 @@ RINGS = [
 # ---------------------------------------------------------------------------
 # 1. Load & summarise
 # ---------------------------------------------------------------------------
-print("Loading road network (583 K segments — takes ~30 s)…")
-roads = gpd.read_file(GDB_PATH, layer="ORN_ROAD_NET_ELEMENT")
+print("Loading road network (geometry only)…")
+roads = gpd.read_file(GDB_PATH, layer="ORN_ROAD_NET_ELEMENT", include_fields=[])
 
-print(f"\n=== Ontario Road Network ===")
 print(f"Total segments : {len(roads):,}")
-print(f"CRS            : {roads.crs}")
-bounds = roads.total_bounds
-print(f"Bounding box   : lon {bounds[0]:.3f}→{bounds[2]:.3f}  lat {bounds[1]:.3f}→{bounds[3]:.3f}")
 
 # ---------------------------------------------------------------------------
-# 2. Project + simplify + union into one geometry
-#    (union first → buffer once per ring → much faster than per-segment buffer)
+# 2. Project + thin + simplify
 # ---------------------------------------------------------------------------
-print("\nProjecting to EPSG:3347 and simplifying (100 m tolerance)…")
+print("Projecting to EPSG:3347…")
 roads_proj = roads[["geometry"]].to_crs(epsg=3347)
-roads_proj["geometry"] = roads_proj.geometry.simplify(100, preserve_topology=False)
+
+# Sample every 20th segment — plenty of coverage at 5 km buffer scale
+roads_proj = roads_proj.iloc[::20].copy()
+print(f"Sampled to     : {len(roads_proj):,} segments")
+
+roads_proj["geometry"] = roads_proj.geometry.simplify(500, preserve_topology=False)
 roads_proj = roads_proj[~roads_proj.geometry.is_empty]
 
-print("Unioning all road geometries (slow step — ~1–2 min)…")
-roads_union = unary_union(roads_proj.geometry.values)
-print("Union done.")
-
 # ---------------------------------------------------------------------------
-# 3. Buffer each ring and collect into one GeoDataFrame
+# 3. Buffer-first approach: buffer each segment individually, then union.
+#    This is far faster than union-first because each segment buffer is a
+#    simple pill shape; unioning 29 K small polygons beats buffering one
+#    massive MultiLineString with millions of vertices.
 # ---------------------------------------------------------------------------
 os.makedirs(os.path.dirname(OUT_HTML), exist_ok=True)
 
 zone_parts = []
 for radius_m, label, colour in RINGS:
     print(f"  Buffering {label} ({radius_m} m)…")
-    zone_geom = roads_union.buffer(radius_m)
-    zone_gdf  = gpd.GeoDataFrame(
+    buffered   = roads_proj.geometry.buffer(radius_m, resolution=2)
+    zone_geom  = unary_union(buffered)
+    zone_gdf   = gpd.GeoDataFrame(
         {"label": [label], "colour": [colour]},
         geometry=[zone_geom],
         crs="EPSG:3347",
@@ -64,7 +64,7 @@ import pandas as pd
 zones = gpd.GeoDataFrame(pd.concat(zone_parts, ignore_index=True), crs="EPSG:4326")
 
 # Simplify output polygons to reduce file size
-zones["geometry"] = zones.geometry.simplify(0.001, preserve_topology=True)
+zones["geometry"] = zones.geometry.simplify(0.005, preserve_topology=True)
 zones.to_file(OUT_ZONES_JSON, driver="GeoJSON")
 print(f"\nZones saved → {OUT_ZONES_JSON}")
 
