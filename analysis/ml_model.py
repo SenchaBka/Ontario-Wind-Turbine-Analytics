@@ -44,7 +44,7 @@ OUT_ML_MODEL = "analysis/results/turbine_model.json"
 OUT_TOP_SITES = "analysis/results/top_candidate_sites.geojson"
 
 # Grid resolution for candidate points
-GRID_SPACING = 0.01  # ~1km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
+GRID_SPACING = 0.02  # ~2km spacing - MIGHT NEED ADJUSTMENT BASED ON PERFORMANCE
 
 # Suitability weights (rule-based scoring)
 # Note: hard exclusions (protected areas, residential, lakes) are pre-filtered via spatial join
@@ -57,7 +57,7 @@ WEIGHTS = {
 
 # Distance thresholds
 THRESHOLDS = {
-    'min_wind_speed': 5.0,        # m/s minimum
+    'min_wind_speed': 6.0,        # m/s minimum
     'max_road_distance': 50.0,    # km - too far = harder to build
     'max_hydro_distance': 50.0,   # km - too far = expensive connection
 }
@@ -253,8 +253,8 @@ candidates_gdf['suitability_score'] = (
     WEIGHTS['hydro_proximity'] * candidates_gdf['hydro_score']
 ) * 100  # Scale to 0-100
     
-# Penalize sites within 10km of a turbine (quadratic dropoff: 0x at 0m, 0.25x at 5km, 1x at 10km+)
-penalty = np.clip((candidates_gdf['dist_turbine_km'] / 10.0) ** 2, 0, 1)
+# Penalize sites within 1.5km of a turbine (quadratic dropoff: 0x at 0m, 1x at 1.5km+)
+penalty = np.clip((candidates_gdf['dist_turbine_km'] / 1.5) ** 2, 0, 1)
 candidates_gdf['suitability_score'] *= penalty
 
 # Filter out candidates with insufficient wind
@@ -362,12 +362,12 @@ output_gdf = candidates_gdf[['geometry', 'wind_speed', 'dist_road_km', 'dist_hyd
 output_gdf.to_file(OUT_SUITABILITY_GPKG, driver="GPKG", layer="suitability")
 print(f"✓ Saved suitability grid → {OUT_SUITABILITY_GPKG}")
 
-# Save top 100 candidate sites
-top_sites = candidates_gdf[candidates_gdf['suitable']].nlargest(100, 'final_score')
+# Save top 1000 candidate sites
+top_sites = candidates_gdf[candidates_gdf['suitable']].nlargest(1000, 'final_score')
 top_sites = top_sites[['geometry', 'wind_speed', 'dist_road_km', 'dist_hydro_km',
                         'suitability_score', 'ml_score', 'final_score']]
 top_sites.to_file(OUT_TOP_SITES, driver="GeoJSON")
-print(f"✓ Saved top 100 sites → {OUT_TOP_SITES}")
+print(f"✓ Saved top 1000 sites → {OUT_TOP_SITES}")
 
 # Save model metadata
 model_info = {
