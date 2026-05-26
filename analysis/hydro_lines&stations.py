@@ -7,9 +7,13 @@ import folium
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-UTILITY_PATH = "analysis/data/Utility_Site.geojson"
-LINE_PATH    = "analysis/data/Utility_Line.geojson"
-OUT_HTML     = "analysis/results/hydro_distance_suitability_map.html"
+UTILITY_PATH         = "analysis/data/Utility_Site.geojson"
+LINE_PATH            = "analysis/data/Utility_Line.geojson"
+OUT_HTML             = "analysis/results/hydro_distance_suitability_map.html"
+OUT_STATIONS_JSON    = "analysis/results/hydro_stations.geojson"
+OUT_STATION_ZONES    = "analysis/results/hydro_station_zones.geojson"
+OUT_LINES_JSON       = "analysis/results/hydro_lines.geojson"
+OUT_LINE_ZONES       = "analysis/results/hydro_line_zones.geojson"
 
 # ---------------------------------------------------------------------------
 # Suitability rings — drawn largest first so smaller ones sit on top
@@ -162,5 +166,32 @@ m.get_root().html.add_child(folium.Element(legend_html))
 folium.LayerControl(collapsed=False).add_to(m)
 
 os.makedirs(os.path.dirname(OUT_HTML), exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Save GeoJSON data files for the backend to serve
+# ---------------------------------------------------------------------------
+def compute_zones(gdf_proj, rings):
+    parts = []
+    for radius_km, label, colour in rings:
+        buf = gpd.GeoDataFrame(geometry=gdf_proj.geometry.buffer(radius_km * 1000), crs=gdf_proj.crs)
+        dis = buf.dissolve().to_crs(epsg=4326)
+        dis["label"]  = label
+        dis["colour"] = colour
+        parts.append(dis)
+    return gpd.GeoDataFrame(pd.concat(parts, ignore_index=True), crs="EPSG:4326")
+
+hydro_wgs[["geometry", "GEOG_UNIT_DESCR", "CLASS_SUBTYPE"]].to_file(OUT_STATIONS_JSON, driver="GeoJSON")
+print(f"Saved → {OUT_STATIONS_JSON}")
+
+compute_zones(hydro_proj, RINGS).to_file(OUT_STATION_ZONES, driver="GeoJSON")
+print(f"Saved → {OUT_STATION_ZONES}")
+
+hydro_lines_wgs = lines[lines["CLASS_SUBTYPE"].isin(LINE_COLOURS.keys())][["geometry", "CLASS_SUBTYPE", "GEOG_UNIT_DESCR"]]
+hydro_lines_wgs.to_file(OUT_LINES_JSON, driver="GeoJSON")
+print(f"Saved → {OUT_LINES_JSON}")
+
+compute_zones(lines[lines["CLASS_SUBTYPE"].isin(LINE_COLOURS.keys())].to_crs(epsg=3347), LINE_RINGS).to_file(OUT_LINE_ZONES, driver="GeoJSON")
+print(f"Saved → {OUT_LINE_ZONES}")
+
 m.save(OUT_HTML)
 print(f"Map saved → {OUT_HTML}")
