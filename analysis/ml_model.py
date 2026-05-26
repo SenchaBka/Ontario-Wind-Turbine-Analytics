@@ -28,6 +28,7 @@ HYDRO_STATION_ZONES = "analysis/results/hydro_station_zones.geojson"
 HYDRO_LINES = "analysis/results/hydro_lines.geojson"
 HYDRO_LINE_ZONES = "analysis/results/hydro_line_zones.geojson"
 ROADS = "analysis/results/roads.geojson"
+LAKES = "analysis/results/lakes.geojson"
 
 # Existing turbines for training
 TURBINES_EXCEL = "analysis/data/Wind_Turbine_Database_en.xlsx"
@@ -85,6 +86,9 @@ hydro_lines = gpd.read_file(HYDRO_LINES).to_crs("EPSG:3347")
 # Combine hydro for proximity calculation
 hydro_all = pd.concat([hydro_stations, hydro_lines], ignore_index=True)
 
+lakes = gpd.read_file(LAKES).to_crs("EPSG:4326")
+print(f"✓ Loaded {len(lakes)} lake polygons")
+
 # Load wind speed raster
 with rasterio.open(WIND_RASTER) as src:
     ontario_geom = ontario.geometry.values
@@ -119,8 +123,13 @@ candidate_points = [
 # Filter to points inside Ontario
 candidates_gdf = gpd.GeoDataFrame({'geometry': candidate_points}, crs="EPSG:4326")
 candidates_gdf = candidates_gdf[candidates_gdf.within(ontario.union_all())]
-
 print(f"✓ Generated {len(candidates_gdf)} candidate points")
+
+# Remove candidates that fall inside lake polygons (can't build on water)
+print("  Removing candidates inside lakes...")
+in_lakes = gpd.sjoin(candidates_gdf, lakes[["geometry"]], how="inner", predicate="within")
+candidates_gdf = candidates_gdf[~candidates_gdf.index.isin(in_lakes.index)]
+print(f"  ✓ {len(candidates_gdf)} candidates remain after lake exclusion")
 
 
 # ============================================================================
