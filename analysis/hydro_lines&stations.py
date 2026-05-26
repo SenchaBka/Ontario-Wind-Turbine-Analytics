@@ -47,16 +47,9 @@ print(f"\nTotal utility lines: {len(lines)}\n")
 
 # Colour map for line subtypes
 LINE_COLOURS = {
-    "Hydro Line":                      "#1f78b4",
-    "Unknown Transmission Line":        "#a6cee3",
-    "Unknown Pipeline":                 "#b2df8a",
-    "Submerged Hydro Line":             "#33a02c",
-    "Natural Gas Pipeline":             "#ff7f00",
-    "Submerged Communication Line":     "#cab2d6",
-    "Communication Line":               "#6a3d9a",
-    "Water Pipeline":                   "#1dd3e6",
-    "Submerged Natural Gas Pipeline":   "#fdbf6f",
-    "Submerged Water Pipeline":         "#e31a1c",
+    "Hydro Line":                  "#1f78b4",
+    "Unknown Transmission Line":   "#a6cee3",
+    "Submerged Hydro Line":        "#33a02c",
 }
 
 # ---------------------------------------------------------------------------
