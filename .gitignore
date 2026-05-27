@@ -1,4 +1,4 @@
 data/
 venv/
 results/
-api/
+analysis/api/wind_speed_map.html

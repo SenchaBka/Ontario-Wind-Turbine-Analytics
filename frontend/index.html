@@ -30,13 +30,13 @@
 
       <div class="l-row">
         <div class="l-dot" style="background:var(--gray-400)"></div>
-        <div class="l-info"><div class="l-name-row"><span class="l-name">Road Accessibility</span></div></div>
+        <div class="l-info"><div class="l-name-row"><span class="l-name">Road Accessibility</span><span class="info-icon" data-tip="Proximity to roads is critical for transporting heavy turbine components and enabling regular maintenance. Sites closer to accessible roads have significantly lower construction and operational costs."><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><text x="8" y="12" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">i</text></svg></span></div></div>
         <button class="tog" id="roads-toggle" aria-label="toggle Roads layer"></button>
       </div>
 
       <div class="l-row">
         <div class="l-dot" style="background:var(--blue-400)"></div>
-        <div class="l-info"><div class="l-name-row"><span class="l-name">Hydro Proximity</span></div></div>
+        <div class="l-info"><div class="l-name-row"><span class="l-name">Hydro Proximity</span><span class="info-icon" data-tip="Wind turbines must connect to the electrical grid via substations or transmission lines. Sites near existing hydro infrastructure reduce grid connection costs, which can account for 20–30% of total project expenses."><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><text x="8" y="12" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">i</text></svg></span></div></div>
         <button class="tog" id="hydro-stations-toggle" aria-label="toggle Hydro Stations layer"></button>
       </div>
     </div>
@@ -46,7 +46,7 @@
 
       <div class="l-row">
         <div class="l-dot" style="background:var(--gray-200)"></div>
-        <div class="l-info"><div class="l-name-row"><span class="l-name">Residential Buffer</span></div></div>
+        <div class="l-info"><div class="l-name-row"><span class="l-name">Residential Buffer</span><span class="info-icon" data-tip="Ontario regulations require wind turbines to maintain a minimum setback from homes to reduce noise and shadow flicker. This exclusion zone protects residents and is a mandatory condition for provincial project approval."><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><text x="8" y="12" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">i</text></svg></span></div></div>
         <button class="tog" id="res-toggle" aria-label="toggle Residential Buffer layer"></button>
       </div>
 
@@ -64,7 +64,7 @@
 
       <div class="l-row">
         <div class="l-dot" style="background:var(--purple)"></div>
-        <div class="l-info"><div class="l-name-row"><span class="l-name">Turbine Setback</span></div></div>
+        <div class="l-info"><div class="l-name-row"><span class="l-name">Turbine Setback</span><span class="info-icon" data-tip="A mandatory minimum buffer surrounding each turbine ensures safe spacing from roads, property lines, and other turbines. It prevents mechanical interference and satisfies Ontario's regulatory distance requirements for wind energy siting."><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><text x="8" y="12" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">i</text></svg></span></div></div>
         <button class="tog" id="turbine-buffer-toggle" aria-label="toggle Turbine Buffer layer" disabled></button>
       </div>
     </div>
@@ -237,6 +237,8 @@
     </div><!-- end src-modal-body -->
   </div><!-- end src-modal -->
 </div><!-- end sources-overlay -->
+
+<div id="layer-tooltip"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>

@@ -1,4 +1,7 @@
-const API = 'http://localhost:5000';
+const isLocalHost = ['localhost', '127.0.0.1', '::1', ''].includes(window.location.hostname);
+const API = isLocalHost
+  ? 'http://localhost:5000'
+  : 'https://REPLACE_WITH_RAILWAY_URL';
 
 // ── Map init ───────────────────────────────────────────────────────
 const map = L.map('map', { attributionControl: false, zoomControl: false })
@@ -371,5 +374,37 @@ srcOverlay.addEventListener('click', e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') srcOverlay.classList.add('src-hidden');
+});
+
+// ── Info icon tooltips ─────────────────────────────────────────────
+const layerTip = document.getElementById('layer-tooltip');
+const MARGIN = 10;
+
+document.querySelectorAll('.info-icon').forEach(icon => {
+  icon.addEventListener('mouseenter', () => {
+    layerTip.textContent = icon.dataset.tip;
+    layerTip.style.opacity = '0';
+    layerTip.style.display = 'block';
+
+    const r = icon.getBoundingClientRect();
+    const tw = layerTip.offsetWidth;
+    const th = layerTip.offsetHeight;
+
+    let left = r.left + r.width / 2 - tw / 2;
+    let top  = r.top - th - 10;
+
+    // keep within viewport horizontally
+    left = Math.max(MARGIN, Math.min(left, window.innerWidth - tw - MARGIN));
+    // flip below if not enough room above
+    if (top < MARGIN) top = r.bottom + 10;
+
+    layerTip.style.left = left + 'px';
+    layerTip.style.top  = top  + 'px';
+    layerTip.style.opacity = '1';
+  });
+
+  icon.addEventListener('mouseleave', () => {
+    layerTip.style.opacity = '0';
+  });
 });
 
