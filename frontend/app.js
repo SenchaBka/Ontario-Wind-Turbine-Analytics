@@ -14,6 +14,7 @@ L.control.zoom({ position: 'bottomright' }).addTo(map);
 let markers = L.layerGroup().addTo(map);
 let turbinesVisible = true;
 
+
 let windOverlay = null,        windVisible = false;
 let resLayer = null,           resVisible = false;
 let roadsLayer = null,         roadsVisible = false;
