@@ -118,19 +118,11 @@ function buildTurbinePopup(props) {
   </div>`;
 }
 
-// ── Candidate site icon ────────────────────────────────────────────
-function makeCsIcon(rank, score) {
-  const cls = score >= 70 ? 'hi' : score < 50 ? 'lo' : '';
-  return L.divIcon({
-    className: '',
-    html: `<div class="cs-wrap">
-             <div class="cs-glow"></div>
-             <div class="cs-circle ${cls}">${rank}</div>
-           </div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -18]
-  });
+// ── Candidate site colour by score ──────────────────────────────
+function csColor(score) {
+  if (score >= 70) return { fill: '#1D9E75', border: '#5DCAA5' };
+  if (score  < 50) return { fill: '#E24B4A', border: '#f07070' };
+  return { fill: '#EF9F27', border: '#FAC775' };
 }
 
 
@@ -303,8 +295,10 @@ fetch(`${API}/api/top-sites`)
 
     topSitesLayer = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       pointToLayer: (f, ll) => {
-        const rank = feats.indexOf(f) + 1;
-        return L.marker(ll, { icon: makeCsIcon(rank, f.properties.final_score) });
+        const c = csColor(f.properties.final_score);
+        return L.circleMarker(ll, {
+          radius: 6, color: c.border, fillColor: c.fill, fillOpacity: 1, weight: 1.5
+        });
       },
       onEachFeature: (f, l) => {
         const rank = feats.indexOf(f) + 1;
