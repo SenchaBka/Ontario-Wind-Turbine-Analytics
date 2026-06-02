@@ -6,7 +6,10 @@ from flask import Flask, jsonify, send_file, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=["https://ontario-wind-turbine-analytics.vercel.app", "http://localhost:5500"])
+CORS(app, origins=[
+    r"https://ontario-wind-turbine-analytics.*\.vercel\.app",
+    "http://localhost:5500"
+])
 
 TURBINES_PATH        = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'api', 'turbines.geojson')
 WIND_PNG_PATH        = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'api', 'wind_speed_overlay.png')
