@@ -18,6 +18,11 @@
   --gray-800:    #444441;
   --text:        rgba(255,255,255,0.85);
   --text-mid:    rgba(255,255,255,0.55);
+  --text-low:    rgba(255,255,255,0.32);
+  --border:      rgba(255,255,255,0.08);
+  --border-sub:  rgba(255,255,255,0.04);
+  --mono:        'ui-monospace','SF Mono','Cascadia Code',Consolas,monospace;
+}
 
 /* ── Loading banner ──────────────────────────────── */
 #loading-banner {
@@ -53,11 +58,6 @@
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-  --text-low:    rgba(255,255,255,0.32);
-  --border:      rgba(255,255,255,0.08);
-  --border-sub:  rgba(255,255,255,0.04);
-  --mono:        'ui-monospace','SF Mono','Cascadia Code',Consolas,monospace;
-}
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
