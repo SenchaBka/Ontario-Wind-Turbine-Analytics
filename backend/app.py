@@ -28,12 +28,13 @@ LAKES_PATH           = os.path.join(os.path.dirname(__file__), '..', 'analysis',
 TURBINE_BUFFER_PATH = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'api', 'turbine_buffer.geojson')
 
 # ── Pre-load GeoJSON files ────────────────────────────────────────────────
-with open(HYDRO_STATIONS_PATH)  as f: _hydro_pts_json     = f.read()
-with open(HYDRO_ST_ZONES_PATH)  as f: _station_zones_json = f.read()
-with open(HYDRO_LINES_PATH)     as f: _hydro_lines_json   = f.read()
-with open(HYDRO_LN_ZONES_PATH)  as f: _line_zones_json    = f.read()
-with open(TOP_SITES_PATH)       as f: _top_sites_json      = f.read()
-with open(LAKES_PATH)           as f: _lakes_json           = f.read()
+with open(HYDRO_STATIONS_PATH)   as f: _hydro_pts_json      = f.read()
+with open(HYDRO_ST_ZONES_PATH)   as f: _station_zones_json  = f.read()
+with open(HYDRO_LINES_PATH)      as f: _hydro_lines_json    = f.read()
+with open(HYDRO_LN_ZONES_PATH)   as f: _line_zones_json     = f.read()
+with open(TOP_SITES_PATH)        as f: _top_sites_json      = f.read()
+with open(LAKES_PATH)            as f: _lakes_json           = f.read()
+with open(PROTECTED_AREAS_PATH)  as f: _protected_json      = f.read()
 
 
 
@@ -120,8 +121,7 @@ def get_roads():
 @app.route('/api/protected-areas')
 def get_protected_areas():
     """Return the protected areas GeoJSON with protected_type property."""
-    gdf = gpd.read_file(PROTECTED_AREAS_PATH)
-    return Response(gdf.to_json(), mimetype='application/json')
+    return Response(_protected_json, mimetype='application/json')
 
 
 
