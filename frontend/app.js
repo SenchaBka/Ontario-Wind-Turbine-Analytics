@@ -3,6 +3,9 @@ const API = isLocalHost
   ? 'http://localhost:5000'
   : 'https://ontario-wind-turbine-analytics-production.up.railway.app';
 
+// Wake up Railway backend immediately on page load (prevents cold-start delay on first data fetch)
+fetch(`${API}/api/turbines`, { method: 'HEAD' }).catch(() => {});
+
 // ── Map init ───────────────────────────────────────────────────────
 const map = L.map('map', { attributionControl: false, zoomControl: false })
   .setView([51.2538, -85.3232], 6);

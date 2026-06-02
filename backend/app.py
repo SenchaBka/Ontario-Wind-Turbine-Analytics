@@ -4,8 +4,10 @@ import pandas as pd
 import geopandas as gpd
 from flask import Flask, jsonify, send_file, Response
 from flask_cors import CORS
+from flask_compress import Compress
 
 app = Flask(__name__)
+Compress(app)
 CORS(app, origins=[
     r"https://ontario-wind-turbine-analytics.*\.vercel\.app",
     "http://localhost:5500"
