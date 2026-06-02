@@ -18,6 +18,41 @@
   --gray-800:    #444441;
   --text:        rgba(255,255,255,0.85);
   --text-mid:    rgba(255,255,255,0.55);
+
+/* ── Loading banner ──────────────────────────────── */
+#loading-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(13,25,41,0.92);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 10px 18px;
+  color: rgba(255,255,255,0.8);
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+  backdrop-filter: blur(6px);
+  transition: opacity 0.4s ease;
+}
+#loading-banner.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #5DCAA5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
   --text-low:    rgba(255,255,255,0.32);
   --border:      rgba(255,255,255,0.08);
   --border-sub:  rgba(255,255,255,0.04);

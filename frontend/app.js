@@ -3,8 +3,10 @@ const API = isLocalHost
   ? 'http://localhost:5000'
   : 'https://ontario-wind-turbine-analytics-production.up.railway.app';
 
-// Wake up Railway backend immediately on page load (prevents cold-start delay on first data fetch)
-fetch(`${API}/api/turbines`, { method: 'HEAD' }).catch(() => {});
+function hideBanner() {
+  const b = document.getElementById('loading-banner');
+  if (b) b.classList.add('hidden');
+}
 
 // ── Map init ───────────────────────────────────────────────────────
 const map = L.map('map', { attributionControl: false, zoomControl: false })
@@ -338,6 +340,7 @@ document.getElementById('lakes-toggle').addEventListener('click', () => {
 fetch(`${API}/api/turbines`)
   .then(r => r.json())
   .then(geo => {
+    hideBanner();
     geo.features.forEach(f => {
       const [lon, lat] = f.geometry.coordinates;
       L.circleMarker([lat, lon], {
