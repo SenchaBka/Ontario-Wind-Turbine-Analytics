@@ -1,10 +1,10 @@
-# 🌬️ Ontario Wind Turbine Siting Analysis
+# Ontario Wind Turbine Siting Analysis
 
 A GIS-based suitability analysis for identifying optimal wind turbine placement across Ontario, considering wind resources, grid infrastructure, exclusion zones, terrain, and energy demand.
 
 ---
 
-## 📦 Datasets
+## Datasets
 
 ### Wind Resource
 
@@ -53,7 +53,7 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 
 ---
 
-## 🔲 AFIs — Datasets Still Needed
+## AFIs — Datasets Still Needed
 
 | Layer                                | Purpose                                                                     |
 | ------------------------------------ | --------------------------------------------------------------------------- |
@@ -64,7 +64,7 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 
 ---
 
-## 🗂️ Analysis Layers Summary
+## Analysis Layers Summary
 
 ### Suitability Scoring Layers
 
@@ -78,7 +78,7 @@ A GIS-based suitability analysis for identifying optimal wind turbine placement 
 
 ---
 
-## 🤖 How the ML Suitability Model Works
+## How the ML Suitability Model Works
 
 The wind turbine suitability model combines spatial exclusion logic with a machine learning (ML) classifier to identify optimal sites:
 
@@ -109,7 +109,7 @@ This hybrid approach ensures that only technically, environmentally, and economi
 
 ---
 
-## 📌 Notes
+## Notes
 
 - Ontario has a **moratorium on offshore wind** (all freshwater lakes) in place since 2011 — analysis is land-based only.
 - Ontario's grid is managed by **IESO** — turbine output feeds the provincial grid, not local areas directly. Grid proximity is therefore more important than demand proximity.
@@ -117,21 +117,32 @@ This hybrid approach ensures that only technically, environmentally, and economi
 
 ---
 
-## How to Run the Project
+## How to Run Locally
 
-1. **Start the Backend API**
-   - Open a terminal in the `backend` directory:
-     ```sh
-     cd backend
-     python app.py
-     ```
+### 1. Install dependencies
 
-2. **Open the Frontend**
-   - Open `frontend/index.html` in your web browser.
+In the project root:
 
-3. **Install Required Libraries for Analysis**
-   - In the project root directory, install all Python dependencies:
-     ```sh
-     pip install -r requirements.txt
-     ```
-   - This will ensure all necessary libraries are available to run the analysis scripts.
+```sh
+pip install -r requirements.txt
+```
+
+### 2. Start the backend API
+
+```sh
+cd backend
+python app.py
+```
+
+The Flask API will start on `http://localhost:5000`.
+
+### 3. Start the frontend server
+
+In a second terminal:
+
+```sh
+cd frontend
+python -m http.server 5500
+```
+
+Open `http://localhost:5500` in your browser.
