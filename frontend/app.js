@@ -1,7 +1,7 @@
 const isLocalHost = ['localhost', '127.0.0.1', '::1', ''].includes(window.location.hostname);
 const API = isLocalHost
   ? 'http://localhost:5000'
-  : 'https://REPLACE_WITH_RAILWAY_URL';
+  : 'https://ontario-wind-turbine-analytics-production.up.railway.app';
 
 // ── Map init ───────────────────────────────────────────────────────
 const map = L.map('map', { attributionControl: false, zoomControl: false })
